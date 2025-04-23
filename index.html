@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Project: An Evening with Arnold!</title>
+        <style>
+            
+            body, h1, h2, h3, p, button, img, div, section, header, footer, ul, li {
+                margin: 0;
+                padding: 0;
+                border: 0;
+                font-size: 100%;
+                font: inherit;
+                vertical-align: baseline;
+                box-sizing: border-box;
+                list-style: none; 
+            }
+
+            body {
+                font-family: sans-serif; 
+                background-color: #f4f4f4; /* Light grey */
+                text-align: center; 
+            }
+
+            .container {
+                background-color: #fff; /* White background */
+                width: 80%; 
+                max-width: 960px; /* Fixed Width */
+                margin: 20px auto;
+                border-radius: 8px; /* Slightly rounded corners */
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+                overflow: auto; 
+            }
+
+            header {
+                background-color: #333; /* Dark background */
+                color: #fff; /* White text color */
+                padding: 20px; /* Padding inside the header */
+                text-align: center; /* Center text */
+            }
+
+            .event-details {
+                padding: 20px;
+                overflow: auto; 
+            }
+
+            .event-details img {
+                width: 150px; /* Fixed width */
+                height: auto; 
+                margin-right: 20px; /* Space between the image and text */
+                border-radius: 50%; /* Make the image circular */
+                object-fit: cover; 
+                float: left; 
+            }
+
+            .event-details div {
+                text-align: left; 
+            }
+
+            .event-details h2 {
+                color: #333; /* Dark heading color */
+                margin-bottom: 10px;
+            }
+
+            .event-details p {
+                line-height: 1.6; 
+                margin-bottom: 8px;
+                color: #555; /* lighter text color */
+            }
+
+            .date {
+                font-weight: bold; 
+            }
+
+            .rsvp {
+                padding: 20px; /* Padding around the RSVP section */
+                text-align: center; /* Center the RSVP text and button */
+                background-color: #f9f9f9; /* Light grey background for this section */
+                border-top: 1px solid #eee; /* Subtle top border to separate sections */
+            }
+
+            .rsvp h3 {
+                color: #333; /* Dark heading color */
+                margin-bottom: 15px;
+            }
+
+            .rsvp-button {
+                background-color: #28a745; /* Green button color */
+                color: #fff; /* White text color */
+                padding: 10px 20px;
+                border: none; 
+                border-radius: 5px; /* Slightly rounded button corners */
+                cursor: pointer; /* Change cursor to indicate it's clickable */
+                font-size: 1em; 
+                transition: background-color 0.3s ease; 
+            }
+
+            .rsvp-button:hover {
+                background-color: #218838; /* Darker green on hover */
+            }
+
+            footer {
+                background-color: #333; /* Dark background */
+                color: #fff; /* White text color */
+                text-align: center;
+                padding: 10px;
+                font-size: 0.8em;
+                border-top: 1px solid #555;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <header>
+                <h1>You're Invited!</h1>
+            </header>
+
+            <section class="event-details">
+                <img src="arnold_picture.png" alt="Picture of Arnold Schwarzenegger">
+                <div>
+                    <h2>An Unforgettable Evening with Arnold Schwarzenegger</h2>
+                    <p class="date">Date: Friday, May 10th, 2025</p>
+                    <p class="time">Time: 7:00 PM - 9:00 PM</p>
+                    <p class="location">Location: The Grand Ballroom, Madeup City</p>
+                    <p class="description">Join us for an exclusive evening with the legendary Arnold Schwarzenegger! Hear inspiring stories, gain insights, and maybe even get a chance to ask him a question. Don't miss this incredible opportunity!</p>
+                </div>
+            </section>
+
+            <section class="rsvp">
+                <h3>RSVP</h3>
+                <p>Please let us know if you can make it by May 1st, 2025.<br><br></p>
+                <button class="rsvp-button">Register Your Interest</button>
+            </section>
+
+            <footer>
+                <p>2025 An Evening With Arnold</p>
+            </footer>
+        </div>
+    </body>
+</html>
