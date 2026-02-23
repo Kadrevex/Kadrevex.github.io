@@ -201,6 +201,48 @@ button {
     color: #888;
     margin: 8px 0;
 }
+
+/* Daily goals row */
+.goals-row {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    width: 80%;
+    margin: 4px auto 0;
+}
+
+.goals-row label {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    font-size: 0.85rem;
+    color: #666;
+    flex: 1;
+}
+
+.dark-mode .goals-row label {
+    color: #aaa;
+}
+
+.goals-row input[type="number"] {
+    width: 100%;
+    padding: 10px;
+    margin: 4px 0 0;
+    font-size: 1rem;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+}
+
+.dark-mode .goals-row input[type="number"] {
+    background: #2a2a2a;
+    color: white;
+    border-color: #555;
+}
+
+.btn-goals {
+    background: #5577dd !important;
+}
 </style>
 </head>
 
@@ -221,6 +263,19 @@ button {
     <div id="proteinBar" class="progress-bar"></div>
 </div>
 <p id="proteinText">0 / 150 g</p>
+
+<h2>Daily Goals</h2>
+<div class="goals-row">
+    <label>
+        Calorie goal (kcal)
+        <input type="number" id="goalCalories" value="2000" min="1">
+    </label>
+    <label>
+        Protein goal (g)
+        <input type="number" id="goalProtein" value="150" min="1">
+    </label>
+</div>
+<button class="btn-goals" onclick="setGoals()">Set Goals</button>
 
 <button onclick="startScanner()">Scan Barcode</button>
 
@@ -296,6 +351,9 @@ function loadState() {
         proteinGoal   = s.proteinGoal   || 150;
 
         if (s.darkMode) document.body.classList.add('dark-mode');
+
+        document.getElementById('goalCalories').value = calorieGoal;
+        document.getElementById('goalProtein').value  = proteinGoal;
 
         foodLog    = s.foodLog    || [];
         savedFoods = s.savedFoods || [];
@@ -425,6 +483,18 @@ function removeSaved(index) {
     list.innerHTML = '';
     savedFoods.forEach((food, i) => renderSavedFood(food, i));
     updateSavedMsg();
+    saveState();
+}
+
+/* ── Daily goals ────────────────────────────────────────────── */
+
+function setGoals() {
+    const newCal  = parseInt(document.getElementById('goalCalories').value);
+    const newProt = parseInt(document.getElementById('goalProtein').value);
+    if (isNaN(newCal) || newCal < 1 || isNaN(newProt) || newProt < 1) return;
+    calorieGoal = newCal;
+    proteinGoal = newProt;
+    updateBars();
     saveState();
 }
 
