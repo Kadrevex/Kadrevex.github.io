@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#4CAF50">
 <link rel="manifest" href="manifest.json">
-<title>Calorie Tracker</title>
+<title>Calorie Scanner</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
 
 <style>
 body {
@@ -28,14 +30,6 @@ h1 {
     text-align: center;
 }
 
-input {
-    width: 100%;
-    padding: 12px;
-    margin-top: 10px;
-    border-radius: 8px;
-    border: 1px solid #ddd;
-}
-
 button {
     width: 100%;
     padding: 12px;
@@ -51,11 +45,15 @@ button:hover {
     opacity: 0.9;
 }
 
-.search-result {
+#scanner-container {
+    margin-top: 15px;
+}
+
+.product-card {
     border: 1px solid #ddd;
     padding: 12px;
-    margin-top: 10px;
     border-radius: 10px;
+    margin-top: 15px;
 }
 
 .food-item {
@@ -75,11 +73,13 @@ button:hover {
 <body>
 
 <div class="container">
-<h1>Calorie Tracker</h1>
+<h1>Calorie Scanner</h1>
 
-<input type="text" id="searchInput" placeholder="Search food...">
+<button onclick="startScanner()">Start Barcode Scanner</button>
 
-<div id="searchResults"></div>
+<div id="scanner-container"></div>
+
+<div id="productResult"></div>
 
 <div class="totals">
 Daily: <span id="dailyTotal">0</span> kcal<br>
@@ -96,14 +96,11 @@ if ('serviceWorker' in navigator) {
 }
 
 let foods = JSON.parse(localStorage.getItem("foods")) || [];
-let debounceTimer;
 
-// Save to localStorage
 function saveData() {
     localStorage.setItem("foods", JSON.stringify(foods));
 }
 
-// Render food log + totals
 function renderFoods() {
     const list = document.getElementById("foodList");
     list.innerHTML = "";
@@ -132,73 +129,68 @@ function renderFoods() {
     document.getElementById("weeklyTotal").innerText = weeklyTotal;
 }
 
-// Auto-search (debounced)
-document.getElementById("searchInput").addEventListener("input", function() {
-    clearTimeout(debounceTimer);
+function startScanner() {
+    document.getElementById("productResult").innerHTML = "";
 
-    const query = this.value.trim();
+    Quagga.init({
+        inputStream: {
+            type: "LiveStream",
+            target: document.querySelector('#scanner-container'),
+            constraints: {
+                facingMode: "environment"
+            }
+        },
+        decoder: {
+            readers: ["ean_reader", "upc_reader"]
+        }
+    }, function(err) {
+        if (err) {
+            alert("Camera error");
+            return;
+        }
+        Quagga.start();
+    });
 
-    if (query.length < 2) {
-        document.getElementById("searchResults").innerHTML = "";
-        return;
-    }
+    Quagga.onDetected(function(result) {
+        Quagga.stop();
+        fetchProduct(result.codeResult.code);
+    });
+}
 
-    debounceTimer = setTimeout(() => {
-        searchFood(query);
-    }, 500);
-});
-
-// Search via OpenFoodFacts v2 API
-async function searchFood(query) {
+async function fetchProduct(barcode) {
     try {
-        const url = `https://world.openfoodfacts.org/api/v2/search?search_terms=${encodeURIComponent(query)}&fields=product_name,nutriments,serving_size&page_size=5`;
-
-        const res = await fetch(url);
+        const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}`);
         const data = await res.json();
 
-        const resultsDiv = document.getElementById("searchResults");
-        resultsDiv.innerHTML = "";
-
-        if (!data.products || data.products.length === 0) {
-            resultsDiv.innerHTML = "<p>No results found.</p>";
+        if (data.status !== 1) {
+            alert("Product not found.");
             return;
         }
 
-        data.products.forEach((product, index) => {
+        const product = data.product;
+        const name = product.product_name || "Unknown product";
+        const kcal = product.nutriments?.["energy-kcal_100g"] || 0;
+        const serving = product.serving_size || "100g";
 
-            const name = product.product_name || "Unknown product";
-            const kcal = product.nutriments?.["energy-kcal_100g"] || 0;
-            const serving = product.serving_size || "100g";
-
-            const div = document.createElement("div");
-            div.className = "search-result";
-
-            div.innerHTML = `
+        document.getElementById("productResult").innerHTML = `
+            <div class="product-card">
                 <strong>${name}</strong><br>
                 ${kcal} kcal per 100g<br>
                 Serving size: ${serving}<br><br>
                 Servings:
-                <input type="number" value="1" min="1" id="serv-${index}" style="width:70px;">
-                <button onclick="addFood('${name.replace(/'/g,"")}', ${kcal}, ${index})">Add</button>
-            `;
-
-            resultsDiv.appendChild(div);
-        });
+                <input type="number" value="1" min="1" id="servings" style="width:70px;">
+                <button onclick="addFood('${name.replace(/'/g,"")}', ${kcal})">Add to Log</button>
+            </div>
+        `;
 
     } catch (err) {
-        console.error(err);
-        document.getElementById("searchResults").innerHTML =
-            "<p>Error fetching food data.</p>";
+        alert("Error fetching product data.");
     }
 }
 
-// Add selected food
-function addFood(name, kcalPer100g, index) {
-    const servingsInput = document.getElementById(`serv-${index}`);
-    const servings = parseInt(servingsInput.value) || 1;
-
+function addFood(name, kcalPer100g) {
+    const servings = parseInt(document.getElementById("servings").value) || 1;
     const totalCalories = kcalPer100g * servings;
-
     const today = new Date().toISOString().split("T")[0];
 
     foods.push({
@@ -210,6 +202,8 @@ function addFood(name, kcalPer100g, index) {
 
     saveData();
     renderFoods();
+
+    document.getElementById("productResult").innerHTML = "";
 }
 
 renderFoods();
