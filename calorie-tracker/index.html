@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#4CAF50">
+<link rel="manifest" href="manifest.json">
+<title>Calorie Tracker</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background: #f4f4f4;
+}
+.container {
+    max-width: 800px;
+    margin: auto;
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+}
+button {
+    padding: 10px;
+    width: 100%;
+    margin-top: 10px;
+    background: #4CAF50;
+    color: white;
+    border: none;
+}
+input {
+    padding: 10px;
+    width: 100%;
+    margin-top: 10px;
+}
+.food-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+<h1>Calorie Tracker</h1>
+
+<input type="text" id="foodName" placeholder="Food name">
+<input type="number" id="calories" placeholder="Calories">
+<button onclick="addFood()">Add Food</button>
+
+<h3>Scan Barcode</h3>
+<button onclick="startScanner()">Start Scanner</button>
+<div id="scanner-container"></div>
+
+<div id="foodList"></div>
+
+<h3>Totals</h3>
+Daily: <span id="dailyTotal">0</span> kcal<br>
+Weekly: <span id="weeklyTotal">0</span> kcal
+</div>
+
+<script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+}
+
+let foods = JSON.parse(localStorage.getItem("foods")) || [];
+
+function saveData() {
+    localStorage.setItem("foods", JSON.stringify(foods));
+}
+
+function addFood(name=null, cal=null) {
+    const foodName = name || document.getElementById("foodName").value;
+    const calories = cal || parseInt(document.getElementById("calories").value);
+
+    if (!foodName || !calories) return alert("Enter valid values");
+
+    const today = new Date().toISOString().split("T")[0];
+    foods.push({ name: foodName, calories: calories, date: today });
+
+    saveData();
+    renderFoods();
+}
+
+function renderFoods() {
+    const list = document.getElementById("foodList");
+    list.innerHTML = "";
+
+    const today = new Date().toISOString().split("T")[0];
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    let dailyTotal = 0;
+    let weeklyTotal = 0;
+
+    foods.forEach(food => {
+        if (food.date === today) dailyTotal += food.calories;
+        if (new Date(food.date) >= weekAgo) weeklyTotal += food.calories;
+
+        const div = document.createElement("div");
+        div.className = "food-item";
+        div.innerHTML = `${food.name} - ${food.calories} kcal`;
+        list.appendChild(div);
+    });
+
+    document.getElementById("dailyTotal").innerText = dailyTotal;
+    document.getElementById("weeklyTotal").innerText = weeklyTotal;
+}
+
+function startScanner() {
+    Quagga.init({
+        inputStream: {
+            type: "LiveStream",
+            target: document.querySelector('#scanner-container'),
+            constraints: { facingMode: "environment" }
+        },
+        decoder: {
+            readers: ["ean_reader", "upc_reader"]
+        }
+    }, function(err) {
+        if (!err) Quagga.start();
+    });
+
+    Quagga.onDetected(async function(result) {
+        Quagga.stop();
+        fetchProduct(result.codeResult.code);
+    });
+}
+
+async function fetchProduct(barcode) {
+    const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
+    const data = await res.json();
+    if (data.status === 1) {
+        const name = data.product.product_name || "Product";
+        const calories = data.product.nutriments["energy-kcal_100g"] || 0;
+        addFood(name, parseInt(calories));
+    }
+}
+
+renderFoods();
+</script>
+</body>
+</html>
