@@ -3,247 +3,293 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#4CAF50">
-<link rel="manifest" href="manifest.json">
-<title>Calorie Scanner</title>
+<title>Calorie Tracker</title>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode"></script>
 
 <style>
-body {
-    font-family: Arial, sans-serif;
-    margin: 0;
-    background: #f4f4f4;
+:root{
+  --bg:#ffffff;
+  --card:#f4f4f4;
+  --text:#111;
+  --accent:#4CAF50;
 }
-
-.container {
-    max-width: 600px;
-    margin: auto;
-    padding: 15px;
+body.dark{
+  --bg:#121212;
+  --card:#1e1e1e;
+  --text:#eee;
+  --accent:#81C784;
 }
-
-h1 {
-    text-align: center;
+body{
+  font-family:Arial;
+  margin:0;
+  padding:15px;
+  background:var(--bg);
+  color:var(--text);
 }
-
-button {
-    width: 100%;
-    padding: 12px;
-    margin-top: 10px;
-    border-radius: 8px;
-    border: none;
-    background: #4CAF50;
-    color: white;
-    font-weight: bold;
+h1{text-align:center;}
+.card{
+  background:var(--card);
+  padding:15px;
+  border-radius:12px;
+  margin-bottom:15px;
 }
-
-#scanner-container {
-    position: relative;
-    width: 100%;
-    max-height: 60vh;
-    overflow: hidden;
-    margin-top: 15px;
-    border-radius: 12px;
+button{
+  padding:10px;
+  border:none;
+  border-radius:8px;
+  margin:5px 0;
+  background:var(--accent);
+  color:white;
+  cursor:pointer;
 }
-
-#scanner-container video {
-    width: 100%;
-    height: auto;
-    object-fit: cover;
+input{
+  width:100%;
+  padding:8px;
+  margin:5px 0;
+  border-radius:6px;
+  border:1px solid #ccc;
 }
-
-.food-item {
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 0;
+#reader{
+  width:100%;
+  max-width:100%;
+  height:300px;
+  overflow:hidden;
+  border-radius:12px;
 }
-
-.totals {
-    margin-top: 20px;
-    font-weight: bold;
-    font-size: 18px;
+.entry{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin:5px 0;
+  padding:8px;
+  border-radius:8px;
+  background:var(--card);
 }
-
-/* Modal */
-.modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.6);
-    display: none;
-    justify-content: center;
-    align-items: center;
+.small-btn{
+  padding:4px 6px;
+  font-size:12px;
 }
-
-.modal-content {
-    background: white;
-    padding: 20px;
-    border-radius: 12px;
-    width: 90%;
-    max-width: 400px;
+.progress{
+  height:12px;
+  background:#ccc;
+  border-radius:6px;
+  overflow:hidden;
 }
-
-.modal input {
-    width: 80px;
-    padding: 8px;
+.progress-bar{
+  height:100%;
+  background:var(--accent);
+}
+.modal{
+  position:fixed;
+  top:0; left:0;
+  width:100%; height:100%;
+  background:rgba(0,0,0,0.6);
+  display:none;
+  justify-content:center;
+  align-items:center;
+}
+.modal-content{
+  background:var(--card);
+  padding:20px;
+  border-radius:12px;
+  width:90%;
 }
 </style>
 </head>
-
 <body>
 
-<div class="container">
-<h1>Calorie Scanner</h1>
+<h1>Calorie Tracker</h1>
 
-<button onclick="startScanner()">Scan Barcode</button>
-
-<div id="scanner-container"></div>
-
-<div class="totals">
-Daily: <span id="dailyTotal">0</span> kcal<br>
-Weekly: <span id="weeklyTotal">0</span> kcal
+<div class="card">
+  <button onclick="toggleDarkMode()">Toggle Dark Mode</button>
 </div>
 
-<div id="foodList"></div>
+<div class="card">
+  <h3>Daily Goal</h3>
+  <input type="number" id="goalInput" placeholder="Enter daily calorie goal">
+  <button onclick="setGoal()">Save Goal</button>
+</div>
+
+<div class="card">
+  <h3>Scan Barcode</h3>
+  <div id="reader"></div>
+  <button onclick="startScanner()">Start Camera</button>
+  <button onclick="stopScanner()">Stop Camera</button>
+</div>
+
+<div class="card">
+  <h3>Manual Entry</h3>
+  <input type="text" id="manualName" placeholder="Food name">
+  <input type="number" id="manualCalories" placeholder="Calories per serving">
+  <input type="number" id="manualServings" placeholder="Servings" value="1">
+  <button onclick="addManual()">Add Food</button>
+</div>
+
+<div class="card">
+  <h3>Today's Entries</h3>
+  <div id="entries"></div>
+  <h3>Total: <span id="total">0</span> kcal</h3>
+  <div class="progress">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+  <button onclick="resetDay()">Reset Day</button>
+</div>
+
+<div class="card">
+  <h3>This Week Total</h3>
+  <div id="weekTotal">0</div>
 </div>
 
 <!-- Confirmation Modal -->
 <div class="modal" id="confirmModal">
   <div class="modal-content">
-    <h3 id="modalName"></h3>
-    <p id="modalCalories"></p>
-    Servings:
-    <input type="number" id="modalServings" value="1" min="1"><br><br>
+    <h3 id="confirmName"></h3>
+    <p id="confirmCalories"></p>
+    <input type="number" id="confirmServings" value="1">
     <button onclick="confirmAdd()">Confirm</button>
-    <button onclick="closeModal()" style="background:#999;">Cancel</button>
+    <button onclick="closeModal()">Cancel</button>
   </div>
 </div>
 
 <script>
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js');
+let entries = JSON.parse(localStorage.getItem("entries")) || {};
+let goal = localStorage.getItem("goal") || 0;
+let today = new Date().toISOString().slice(0,10);
+let scanner;
+let scannedProduct=null;
+
+if(!entries[today]) entries[today]=[];
+
+document.getElementById("goalInput").value=goal;
+
+function save(){
+  localStorage.setItem("entries",JSON.stringify(entries));
 }
 
-let foods = JSON.parse(localStorage.getItem("foods")) || [];
-let scannedProduct = null;
-
-function saveData() {
-    localStorage.setItem("foods", JSON.stringify(foods));
+function setGoal(){
+  goal=document.getElementById("goalInput").value;
+  localStorage.setItem("goal",goal);
+  update();
 }
 
-function renderFoods() {
-    const list = document.getElementById("foodList");
-    list.innerHTML = "";
-
-    const today = new Date().toISOString().split("T")[0];
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-
-    let dailyTotal = 0;
-    let weeklyTotal = 0;
-
-    foods.forEach(food => {
-        if (food.date === today) dailyTotal += food.calories;
-        if (new Date(food.date) >= weekAgo) weeklyTotal += food.calories;
-
-        const div = document.createElement("div");
-        div.className = "food-item";
-        div.innerHTML = `
-            <span>${food.name} (${food.servings}x)</span>
-            <span>${food.calories} kcal</span>
-        `;
-        list.appendChild(div);
-    });
-
-    document.getElementById("dailyTotal").innerText = dailyTotal;
-    document.getElementById("weeklyTotal").innerText = weeklyTotal;
+function addEntry(name,calories){
+  entries[today].push({name,calories});
+  save();
+  update();
 }
 
-function startScanner() {
-    const container = document.getElementById("scanner-container");
-    container.innerHTML = "";
-
-    Quagga.init({
-        inputStream: {
-            type: "LiveStream",
-            target: container,
-            constraints: {
-                facingMode: "environment",
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
-            }
-        },
-        decoder: {
-            readers: ["ean_reader", "upc_reader"]
-        }
-    }, function(err) {
-        if (err) {
-            alert("Camera access failed.");
-            return;
-        }
-        Quagga.start();
-    });
-
-    Quagga.onDetected(function(result) {
-        Quagga.stop();
-        fetchProduct(result.codeResult.code);
-    });
+function addManual(){
+  const name=document.getElementById("manualName").value;
+  const cal=parseFloat(document.getElementById("manualCalories").value);
+  const servings=parseFloat(document.getElementById("manualServings").value)||1;
+  if(!name||!cal)return;
+  addEntry(name,cal*servings);
+  document.getElementById("manualName").value="";
+  document.getElementById("manualCalories").value="";
+  document.getElementById("manualServings").value=1;
 }
 
-async function fetchProduct(barcode) {
-    try {
-        const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}`);
-        const data = await res.json();
+function deleteEntry(index){
+  entries[today].splice(index,1);
+  save();
+  update();
+}
 
-        if (data.status !== 1) {
-            alert("Product not found.");
-            return;
-        }
+function editEntry(index){
+  let newCal=prompt("Edit calories:",entries[today][index].calories);
+  if(newCal){
+    entries[today][index].calories=parseFloat(newCal);
+    save();
+    update();
+  }
+}
 
-        const product = data.product;
-        const name = product.product_name || "Unknown product";
-        const kcal = product.nutriments?.["energy-kcal_100g"] || 0;
+function resetDay(){
+  if(confirm("Clear today's entries?")){
+    entries[today]=[];
+    save();
+    update();
+  }
+}
 
-        scannedProduct = { name, kcal };
+function update(){
+  const list=document.getElementById("entries");
+  list.innerHTML="";
+  let total=0;
+  entries[today].forEach((e,i)=>{
+    total+=e.calories;
+    list.innerHTML+=`
+      <div class="entry">
+        <div>${e.name} (${e.calories} kcal)</div>
+        <div>
+          <button class="small-btn" onclick="editEntry(${i})">Edit</button>
+          <button class="small-btn" onclick="deleteEntry(${i})">Delete</button>
+        </div>
+      </div>
+    `;
+  });
+  document.getElementById("total").innerText=total;
+  let percent=goal?Math.min((total/goal)*100,100):0;
+  document.getElementById("progressBar").style.width=percent+"%";
+  updateWeek();
+}
 
-        document.getElementById("modalName").innerText = name;
-        document.getElementById("modalCalories").innerText =
-            kcal + " kcal per 100g";
-
-        document.getElementById("confirmModal").style.display = "flex";
-
-    } catch (err) {
-        alert("Error fetching product data.");
+function updateWeek(){
+  let weekTotal=0;
+  let now=new Date();
+  for(let i=0;i<7;i++){
+    let d=new Date(now);
+    d.setDate(now.getDate()-i);
+    let key=d.toISOString().slice(0,10);
+    if(entries[key]){
+      entries[key].forEach(e=>weekTotal+=e.calories);
     }
+  }
+  document.getElementById("weekTotal").innerText=weekTotal+" kcal";
 }
 
-function confirmAdd() {
-    const servings = parseInt(
-        document.getElementById("modalServings").value
-    ) || 1;
+function toggleDarkMode(){
+  document.body.classList.toggle("dark");
+  localStorage.setItem("darkMode",document.body.classList.contains("dark"));
+}
+if(localStorage.getItem("darkMode")==="true"){
+  document.body.classList.add("dark");
+}
 
-    const totalCalories = scannedProduct.kcal * servings;
-    const today = new Date().toISOString().split("T")[0];
-
-    foods.push({
-        name: scannedProduct.name,
-        calories: totalCalories,
-        servings: servings,
-        date: today
+function startScanner(){
+  scanner=new Html5Qrcode("reader");
+  scanner.start({facingMode:"environment"}, {fps:10,qrbox:250},
+    async (decoded)=>{
+      stopScanner();
+      let res=await fetch("https://world.openfoodfacts.org/api/v0/product/"+decoded+".json");
+      let data=await res.json();
+      if(data.product){
+        scannedProduct=data.product;
+        document.getElementById("confirmName").innerText=data.product.product_name||"Unknown";
+        document.getElementById("confirmCalories").innerText=
+          "Calories per 100g: "+(data.product.nutriments["energy-kcal_100g"]||0);
+        document.getElementById("confirmModal").style.display="flex";
+      }
     });
-
-    saveData();
-    renderFoods();
-    closeModal();
 }
 
-function closeModal() {
-    document.getElementById("confirmModal").style.display = "none";
+function stopScanner(){
+  if(scanner) scanner.stop();
 }
 
-renderFoods();
+function confirmAdd(){
+  const calPer100=scannedProduct.nutriments["energy-kcal_100g"]||0;
+  const servings=parseFloat(document.getElementById("confirmServings").value)||1;
+  addEntry(scannedProduct.product_name,calPer100*servings);
+  closeModal();
+}
+
+function closeModal(){
+  document.getElementById("confirmModal").style.display="none";
+}
+
+update();
 </script>
 
 </body>
