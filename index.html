@@ -14,38 +14,66 @@ body {
     padding: 15px;
     background: #f4f4f4;
 }
+
 .container {
     max-width: 600px;
     margin: auto;
     background: white;
     padding: 20px;
-    border-radius: 10px;
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.08);
 }
-input, button {
+
+h1 {
+    text-align: center;
+}
+
+input {
     width: 100%;
-    padding: 10px;
-    margin-top: 10px;
-}
-button {
-    background: #4CAF50;
-    color: white;
-    border: none;
-}
-.search-result {
-    border: 1px solid #ddd;
-    padding: 10px;
+    padding: 12px;
     margin-top: 10px;
     border-radius: 8px;
+    border: 1px solid #ddd;
 }
+
+button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    border-radius: 8px;
+    border: none;
+    background: #4CAF50;
+    color: white;
+    font-weight: bold;
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+.search-result {
+    border: 1px solid #ddd;
+    padding: 12px;
+    margin-top: 10px;
+    border-radius: 10px;
+}
+
 .food-item {
     display: flex;
     justify-content: space-between;
-    padding: 6px;
+    padding: 6px 0;
+}
+
+.totals {
+    margin-top: 20px;
+    font-weight: bold;
+    font-size: 18px;
 }
 </style>
 </head>
 
 <body>
+
 <div class="container">
 <h1>Calorie Tracker</h1>
 
@@ -53,14 +81,16 @@ button {
 
 <div id="searchResults"></div>
 
-<h3>Totals</h3>
+<div class="totals">
 Daily: <span id="dailyTotal">0</span> kcal<br>
 Weekly: <span id="weeklyTotal">0</span> kcal
+</div>
 
 <div id="foodList"></div>
 </div>
 
 <script>
+// Register Service Worker
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js');
 }
@@ -68,10 +98,12 @@ if ('serviceWorker' in navigator) {
 let foods = JSON.parse(localStorage.getItem("foods")) || [];
 let debounceTimer;
 
+// Save to localStorage
 function saveData() {
     localStorage.setItem("foods", JSON.stringify(foods));
 }
 
+// Render food log + totals
 function renderFoods() {
     const list = document.getElementById("foodList");
     list.innerHTML = "";
@@ -89,7 +121,10 @@ function renderFoods() {
 
         const div = document.createElement("div");
         div.className = "food-item";
-        div.innerHTML = `${food.name} (${food.servings}x) - ${food.calories} kcal`;
+        div.innerHTML = `
+            <span>${food.name} (${food.servings}x)</span>
+            <span>${food.calories} kcal</span>
+        `;
         list.appendChild(div);
     });
 
@@ -97,47 +132,72 @@ function renderFoods() {
     document.getElementById("weeklyTotal").innerText = weeklyTotal;
 }
 
+// Auto-search (debounced)
 document.getElementById("searchInput").addEventListener("input", function() {
     clearTimeout(debounceTimer);
-    const query = this.value;
 
-    if (query.length < 2) return;
+    const query = this.value.trim();
+
+    if (query.length < 2) {
+        document.getElementById("searchResults").innerHTML = "";
+        return;
+    }
 
     debounceTimer = setTimeout(() => {
         searchFood(query);
     }, 500);
 });
 
+// Search via OpenFoodFacts v2 API
 async function searchFood(query) {
-    const res = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${query}&search_simple=1&action=process&json=1&page_size=5`);
-    const data = await res.json();
+    try {
+        const url = `https://world.openfoodfacts.org/api/v2/search?search_terms=${encodeURIComponent(query)}&fields=product_name,nutriments,serving_size&page_size=5`;
 
-    const resultsDiv = document.getElementById("searchResults");
-    resultsDiv.innerHTML = "";
+        const res = await fetch(url);
+        const data = await res.json();
 
-    data.products.forEach(product => {
-        const name = product.product_name || "Unknown";
-        const kcal = product.nutriments["energy-kcal_100g"] || 0;
-        const serving = product.serving_size || "100g";
+        const resultsDiv = document.getElementById("searchResults");
+        resultsDiv.innerHTML = "";
 
-        const div = document.createElement("div");
-        div.className = "search-result";
+        if (!data.products || data.products.length === 0) {
+            resultsDiv.innerHTML = "<p>No results found.</p>";
+            return;
+        }
 
-        div.innerHTML = `
-            <strong>${name}</strong><br>
-            ${kcal} kcal per ${serving}<br>
-            Servings: <input type="number" value="1" min="1" style="width:60px;" id="serv-${name}">
-            <button onclick="addFood('${name}', ${kcal}, '${name}')">Add</button>
-        `;
+        data.products.forEach((product, index) => {
 
-        resultsDiv.appendChild(div);
-    });
+            const name = product.product_name || "Unknown product";
+            const kcal = product.nutriments?.["energy-kcal_100g"] || 0;
+            const serving = product.serving_size || "100g";
+
+            const div = document.createElement("div");
+            div.className = "search-result";
+
+            div.innerHTML = `
+                <strong>${name}</strong><br>
+                ${kcal} kcal per 100g<br>
+                Serving size: ${serving}<br><br>
+                Servings:
+                <input type="number" value="1" min="1" id="serv-${index}" style="width:70px;">
+                <button onclick="addFood('${name.replace(/'/g,"")}', ${kcal}, ${index})">Add</button>
+            `;
+
+            resultsDiv.appendChild(div);
+        });
+
+    } catch (err) {
+        console.error(err);
+        document.getElementById("searchResults").innerHTML =
+            "<p>Error fetching food data.</p>";
+    }
 }
 
-function addFood(name, kcalPerServing, idName) {
-    const servingsInput = document.getElementById(`serv-${name}`);
+// Add selected food
+function addFood(name, kcalPer100g, index) {
+    const servingsInput = document.getElementById(`serv-${index}`);
     const servings = parseInt(servingsInput.value) || 1;
-    const totalCalories = kcalPerServing * servings;
+
+    const totalCalories = kcalPer100g * servings;
 
     const today = new Date().toISOString().split("T")[0];
 
@@ -154,5 +214,6 @@ function addFood(name, kcalPerServing, idName) {
 
 renderFoods();
 </script>
+
 </body>
 </html>
