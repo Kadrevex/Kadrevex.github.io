@@ -3,321 +3,174 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#4CAF50">
-<title>Calorie Tracker</title>
+<title>Calorie & Protein Tracker</title>
 
+<!-- PWA Manifest -->
 <link rel="manifest" href="manifest.json">
-
-<script src="https://unpkg.com/html5-qrcode"></script>
+<meta name="theme-color" content="#111111">
 
 <style>
-:root{
-  --bg:#ffffff;
-  --card:#f4f4f4;
-  --text:#111;
-  --accent:#4CAF50;
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    text-align: center;
+    background: #f4f4f4;
+    transition: 0.3s;
 }
 
-body.dark{
-  --bg:#121212;
-  --card:#1e1e1e;
-  --text:#eee;
-  --accent:#81C784;
+.dark-mode {
+    background: #121212;
+    color: white;
 }
 
-body{
-  font-family:Arial;
-  margin:0;
-  padding:20px;
-  background:var(--bg);
-  color:var(--text);
-  text-align:center;
-  font-size:2rem; /* 2x larger */
+.container {
+    padding: 20px;
 }
 
-h1,h2,h3,p,div{
-  text-align:center;
+input, button {
+    width: 80%;
+    padding: 12px;
+    margin: 8px auto;
+    font-size: 1.2rem;
+    display: block;
+    border-radius: 8px;
+    border: none;
 }
 
-.card{
-  background:var(--card);
-  padding:20px;
-  border-radius:20px;
-  margin-bottom:20px;
+button {
+    cursor: pointer;
+    background: #333;
+    color: white;
 }
 
-button{
-  padding:15px;
-  border:none;
-  border-radius:12px;
-  margin:10px 0;
-  background:var(--accent);
-  color:white;
-  font-size:1.5rem;
-  cursor:pointer;
-  width:100%;
+.dark-mode button {
+    background: #444;
 }
 
-input{
-  width:100%;
-  padding:12px;
-  margin:10px 0;
-  border-radius:12px;
-  border:1px solid #ccc;
-  font-size:1.5rem;
-  text-align:center;
+.progress-container {
+    width: 80%;
+    margin: 10px auto;
+    background: #ddd;
+    border-radius: 20px;
+    overflow: hidden;
 }
 
-#reader{
-  width:100%;
-  height:300px;
-  border-radius:20px;
-  overflow:hidden;
+.dark-mode .progress-container {
+    background: #333;
 }
 
-.entry{
-  margin:15px 0;
-  padding:15px;
-  border-radius:15px;
-  background:var(--card);
+.progress-bar {
+    height: 24px;
+    width: 0%;
+    transition: width 0.3s ease;
 }
 
-.progress{
-  height:20px;
-  background:#ccc;
-  border-radius:10px;
-  overflow:hidden;
-  margin-top:15px;
+/* Calories = Blue */
+#calorieBar {
+    background-color: #4da3ff;
 }
 
-.progress-bar{
-  height:100%;
-  background:var(--accent);
+/* Protein = RED (Updated as requested) */
+#proteinBar {
+    background-color: #ff3b3b;
 }
 
-.modal{
-  position:fixed;
-  top:0; left:0;
-  width:100%; height:100%;
-  background:rgba(0,0,0,0.6);
-  display:none;
-  justify-content:center;
-  align-items:center;
+/* Slightly brighter red in dark mode */
+.dark-mode #proteinBar {
+    background-color: #ff4d4d;
 }
 
-.modal-content{
-  background:var(--card);
-  padding:30px;
-  border-radius:20px;
-  width:90%;
+.food-entry {
+    margin: 8px 0;
+    font-size: 1.2rem;
+}
+
+.toggle-btn {
+    margin-top: 15px;
+    background: #666;
 }
 </style>
 </head>
+
 <body>
 
-<h1>Calorie Tracker</h1>
+<div class="container">
 
-<div class="card">
-  <button onclick="toggleDarkMode()">Toggle Dark Mode</button>
+<h1>Daily Tracker</h1>
+
+<h2>Calories</h2>
+<div class="progress-container">
+    <div id="calorieBar" class="progress-bar"></div>
 </div>
+<p id="calorieText">0 / 2000 kcal</p>
 
-<div class="card">
-  <h3>Daily Goal</h3>
-  <input type="number" id="goalInput" placeholder="Enter calorie goal">
-  <button onclick="setGoal()">Save Goal</button>
+<h2>Protein</h2>
+<div class="progress-container">
+    <div id="proteinBar" class="progress-bar"></div>
 </div>
+<p id="proteinText">0 / 150 g</p>
 
-<div class="card">
-  <h3>Scan Barcode</h3>
-  <div id="reader"></div>
-  <button onclick="startScanner()">Start Camera</button>
-  <button onclick="stopScanner()">Stop Camera</button>
-</div>
+<input type="number" id="caloriesInput" placeholder="Calories">
+<input type="number" id="proteinInput" placeholder="Protein (g)">
+<button onclick="addFood()">Add Food</button>
 
-<div class="card">
-  <h3>Manual Entry</h3>
-  <input type="text" id="manualName" placeholder="Food name">
-  <input type="number" id="manualCalories" placeholder="Calories per serving">
-  <input type="number" id="manualServings" placeholder="Servings" value="1">
-  <button onclick="addManual()">Add Food</button>
-</div>
+<button onclick="resetDay()">Reset Day</button>
+<button class="toggle-btn" onclick="toggleDarkMode()">Toggle Dark Mode</button>
 
-<div class="card">
-  <h3>Today's Entries</h3>
-  <div id="entries"></div>
-  <h3>Total: <span id="total">0</span> kcal</h3>
-  <div class="progress">
-    <div class="progress-bar" id="progressBar"></div>
-  </div>
-  <button onclick="resetDay()">Reset Day</button>
-</div>
+<div id="foodList"></div>
 
-<div class="card">
-  <h3>This Week Total</h3>
-  <div id="weekTotal">0</div>
-</div>
-
-<!-- Modal -->
-<div class="modal" id="confirmModal">
-  <div class="modal-content">
-    <h3 id="confirmName"></h3>
-    <p id="confirmCalories"></p>
-    <input type="number" id="confirmServings" value="1">
-    <button onclick="confirmAdd()">Confirm</button>
-    <button onclick="closeModal()">Cancel</button>
-  </div>
 </div>
 
 <script>
-/* ---------------- PWA SERVICE WORKER (INLINE GENERATION) ---------------- */
+let totalCalories = 0;
+let totalProtein = 0;
+let calorieGoal = 2000;
+let proteinGoal = 150;
 
-if ('serviceWorker' in navigator) {
-  const swCode = `
-    const CACHE_NAME = 'calorie-app-v1';
-    self.addEventListener('install', e => {
-      e.waitUntil(
-        caches.open(CACHE_NAME).then(cache => cache.addAll(['./']))
-      );
-    });
-    self.addEventListener('fetch', e => {
-      e.respondWith(
-        caches.match(e.request).then(r => r || fetch(e.request))
-      );
-    });
-  `;
-  const blob = new Blob([swCode], { type: 'text/javascript' });
-  const swURL = URL.createObjectURL(blob);
-  navigator.serviceWorker.register(swURL);
+function addFood() {
+    const calories = parseInt(document.getElementById("caloriesInput").value);
+    const protein = parseInt(document.getElementById("proteinInput").value);
+
+    if (!calories || !protein) return;
+
+    totalCalories += calories;
+    totalProtein += protein;
+
+    updateBars();
+
+    const entry = document.createElement("div");
+    entry.className = "food-entry";
+    entry.textContent = `${calories} kcal | ${protein}g protein`;
+    document.getElementById("foodList").appendChild(entry);
+
+    document.getElementById("caloriesInput").value = "";
+    document.getElementById("proteinInput").value = "";
 }
 
-/* ---------------- APP LOGIC ---------------- */
+function updateBars() {
+    const caloriePercent = Math.min((totalCalories / calorieGoal) * 100, 100);
+    const proteinPercent = Math.min((totalProtein / proteinGoal) * 100, 100);
 
-let entries = JSON.parse(localStorage.getItem("entries")) || {};
-let goal = localStorage.getItem("goal") || 0;
-let today = new Date().toISOString().slice(0,10);
-let scanner;
-let scannedProduct=null;
+    document.getElementById("calorieBar").style.width = caloriePercent + "%";
+    document.getElementById("proteinBar").style.width = proteinPercent + "%";
 
-if(!entries[today]) entries[today]=[];
+    document.getElementById("calorieText").textContent =
+        `${totalCalories} / ${calorieGoal} kcal`;
 
-document.getElementById("goalInput").value=goal;
-
-function save(){
-  localStorage.setItem("entries",JSON.stringify(entries));
+    document.getElementById("proteinText").textContent =
+        `${totalProtein} / ${proteinGoal} g`;
 }
 
-function setGoal(){
-  goal=document.getElementById("goalInput").value;
-  localStorage.setItem("goal",goal);
-  update();
+function resetDay() {
+    totalCalories = 0;
+    totalProtein = 0;
+    document.getElementById("foodList").innerHTML = "";
+    updateBars();
 }
 
-function addEntry(name,calories){
-  entries[today].push({name,calories});
-  save();
-  update();
+function toggleDarkMode() {
+    document.body.classList.toggle("dark-mode");
 }
-
-function addManual(){
-  const name=document.getElementById("manualName").value;
-  const cal=parseFloat(document.getElementById("manualCalories").value);
-  const servings=parseFloat(document.getElementById("manualServings").value)||1;
-  if(!name||!cal)return;
-  addEntry(name,cal*servings);
-  document.getElementById("manualName").value="";
-  document.getElementById("manualCalories").value="";
-  document.getElementById("manualServings").value=1;
-}
-
-function deleteEntry(index){
-  entries[today].splice(index,1);
-  save();
-  update();
-}
-
-function resetDay(){
-  if(confirm("Clear today?")){
-    entries[today]=[];
-    save();
-    update();
-  }
-}
-
-function update(){
-  const list=document.getElementById("entries");
-  list.innerHTML="";
-  let total=0;
-  entries[today].forEach((e,i)=>{
-    total+=e.calories;
-    list.innerHTML+=`
-      <div class="entry">
-        ${e.name} (${e.calories} kcal)
-        <br>
-        <button onclick="deleteEntry(${i})">Delete</button>
-      </div>
-    `;
-  });
-  document.getElementById("total").innerText=total;
-  let percent=goal?Math.min((total/goal)*100,100):0;
-  document.getElementById("progressBar").style.width=percent+"%";
-  updateWeek();
-}
-
-function updateWeek(){
-  let weekTotal=0;
-  let now=new Date();
-  for(let i=0;i<7;i++){
-    let d=new Date(now);
-    d.setDate(now.getDate()-i);
-    let key=d.toISOString().slice(0,10);
-    if(entries[key]){
-      entries[key].forEach(e=>weekTotal+=e.calories);
-    }
-  }
-  document.getElementById("weekTotal").innerText=weekTotal+" kcal";
-}
-
-function toggleDarkMode(){
-  document.body.classList.toggle("dark");
-  localStorage.setItem("darkMode",document.body.classList.contains("dark"));
-}
-if(localStorage.getItem("darkMode")==="true"){
-  document.body.classList.add("dark");
-}
-
-function startScanner(){
-  scanner=new Html5Qrcode("reader");
-  scanner.start({facingMode:"environment"}, {fps:10,qrbox:250},
-    async (decoded)=>{
-      stopScanner();
-      let res=await fetch("https://world.openfoodfacts.org/api/v0/product/"+decoded+".json");
-      let data=await res.json();
-      if(data.product){
-        scannedProduct=data.product;
-        document.getElementById("confirmName").innerText=data.product.product_name||"Unknown";
-        document.getElementById("confirmCalories").innerText=
-          "Calories per 100g: "+(data.product.nutriments["energy-kcal_100g"]||0);
-        document.getElementById("confirmModal").style.display="flex";
-      }
-    });
-}
-
-function stopScanner(){
-  if(scanner) scanner.stop();
-}
-
-function confirmAdd(){
-  const calPer100=scannedProduct.nutriments["energy-kcal_100g"]||0;
-  const servings=parseFloat(document.getElementById("confirmServings").value)||1;
-  addEntry(scannedProduct.product_name,calPer100*servings);
-  closeModal();
-}
-
-function closeModal(){
-  document.getElementById("confirmModal").style.display="none";
-}
-
-update();
 </script>
 
 </body>
