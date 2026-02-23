@@ -13,17 +13,13 @@
 body {
     font-family: Arial, sans-serif;
     margin: 0;
-    padding: 15px;
     background: #f4f4f4;
 }
 
 .container {
     max-width: 600px;
     margin: auto;
-    background: white;
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+    padding: 15px;
 }
 
 h1 {
@@ -41,19 +37,19 @@ button {
     font-weight: bold;
 }
 
-button:hover {
-    opacity: 0.9;
-}
-
 #scanner-container {
+    position: relative;
+    width: 100%;
+    max-height: 60vh;
+    overflow: hidden;
     margin-top: 15px;
+    border-radius: 12px;
 }
 
-.product-card {
-    border: 1px solid #ddd;
-    padding: 12px;
-    border-radius: 10px;
-    margin-top: 15px;
+#scanner-container video {
+    width: 100%;
+    height: auto;
+    object-fit: cover;
 }
 
 .food-item {
@@ -67,6 +63,32 @@ button:hover {
     font-weight: bold;
     font-size: 18px;
 }
+
+/* Modal */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.6);
+    display: none;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 400px;
+}
+
+.modal input {
+    width: 80px;
+    padding: 8px;
+}
 </style>
 </head>
 
@@ -75,11 +97,9 @@ button:hover {
 <div class="container">
 <h1>Calorie Scanner</h1>
 
-<button onclick="startScanner()">Start Barcode Scanner</button>
+<button onclick="startScanner()">Scan Barcode</button>
 
 <div id="scanner-container"></div>
-
-<div id="productResult"></div>
 
 <div class="totals">
 Daily: <span id="dailyTotal">0</span> kcal<br>
@@ -89,13 +109,25 @@ Weekly: <span id="weeklyTotal">0</span> kcal
 <div id="foodList"></div>
 </div>
 
+<!-- Confirmation Modal -->
+<div class="modal" id="confirmModal">
+  <div class="modal-content">
+    <h3 id="modalName"></h3>
+    <p id="modalCalories"></p>
+    Servings:
+    <input type="number" id="modalServings" value="1" min="1"><br><br>
+    <button onclick="confirmAdd()">Confirm</button>
+    <button onclick="closeModal()" style="background:#999;">Cancel</button>
+  </div>
+</div>
+
 <script>
-// Register Service Worker
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js');
 }
 
 let foods = JSON.parse(localStorage.getItem("foods")) || [];
+let scannedProduct = null;
 
 function saveData() {
     localStorage.setItem("foods", JSON.stringify(foods));
@@ -130,14 +162,17 @@ function renderFoods() {
 }
 
 function startScanner() {
-    document.getElementById("productResult").innerHTML = "";
+    const container = document.getElementById("scanner-container");
+    container.innerHTML = "";
 
     Quagga.init({
         inputStream: {
             type: "LiveStream",
-            target: document.querySelector('#scanner-container'),
+            target: container,
             constraints: {
-                facingMode: "environment"
+                facingMode: "environment",
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
             }
         },
         decoder: {
@@ -145,7 +180,7 @@ function startScanner() {
         }
     }, function(err) {
         if (err) {
-            alert("Camera error");
+            alert("Camera access failed.");
             return;
         }
         Quagga.start();
@@ -170,31 +205,30 @@ async function fetchProduct(barcode) {
         const product = data.product;
         const name = product.product_name || "Unknown product";
         const kcal = product.nutriments?.["energy-kcal_100g"] || 0;
-        const serving = product.serving_size || "100g";
 
-        document.getElementById("productResult").innerHTML = `
-            <div class="product-card">
-                <strong>${name}</strong><br>
-                ${kcal} kcal per 100g<br>
-                Serving size: ${serving}<br><br>
-                Servings:
-                <input type="number" value="1" min="1" id="servings" style="width:70px;">
-                <button onclick="addFood('${name.replace(/'/g,"")}', ${kcal})">Add to Log</button>
-            </div>
-        `;
+        scannedProduct = { name, kcal };
+
+        document.getElementById("modalName").innerText = name;
+        document.getElementById("modalCalories").innerText =
+            kcal + " kcal per 100g";
+
+        document.getElementById("confirmModal").style.display = "flex";
 
     } catch (err) {
         alert("Error fetching product data.");
     }
 }
 
-function addFood(name, kcalPer100g) {
-    const servings = parseInt(document.getElementById("servings").value) || 1;
-    const totalCalories = kcalPer100g * servings;
+function confirmAdd() {
+    const servings = parseInt(
+        document.getElementById("modalServings").value
+    ) || 1;
+
+    const totalCalories = scannedProduct.kcal * servings;
     const today = new Date().toISOString().split("T")[0];
 
     foods.push({
-        name: name,
+        name: scannedProduct.name,
         calories: totalCalories,
         servings: servings,
         date: today
@@ -202,8 +236,11 @@ function addFood(name, kcalPer100g) {
 
     saveData();
     renderFoods();
+    closeModal();
+}
 
-    document.getElementById("productResult").innerHTML = "";
+function closeModal() {
+    document.getElementById("confirmModal").style.display = "none";
 }
 
 renderFoods();
