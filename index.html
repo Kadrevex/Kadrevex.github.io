@@ -48,6 +48,12 @@ button {
     background: #444;
 }
 
+.dark-mode input {
+    background: #2a2a2a;
+    color: white;
+    border: 1px solid #555;
+}
+
 .progress-container {
     width: 80%;
     margin: 10px auto;
@@ -83,17 +89,26 @@ button {
     font-size: 1.2rem;
 }
 
+/* Scanner: stays inside its panel */
 #scanner {
-    width: 100%;
-    height: 50vh;
+    position: relative;
+    width: 80%;
+    max-width: 500px;
+    height: 260px;
     margin: 10px auto;
     display: none;
     overflow: hidden;
+    border-radius: 8px;
+    background: #000;
 }
 
-video {
-    width: 100%;
-    height: 100%;
+#scanner video,
+#scanner canvas {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
     object-fit: cover;
 }
 
@@ -113,6 +128,78 @@ video {
 .dark-mode .popup {
     background: #222;
     color: white;
+}
+
+/* Saved foods */
+.saved-food-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 80%;
+    margin: 8px auto;
+    background: #e0e0e0;
+    border-radius: 8px;
+    padding: 10px 14px;
+    box-sizing: border-box;
+    text-align: left;
+    gap: 8px;
+}
+
+.dark-mode .saved-food-card {
+    background: #2a2a2a;
+    color: white;
+}
+
+.saved-food-card .food-info {
+    flex: 1;
+    font-size: 1rem;
+}
+
+.saved-food-card .food-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.saved-food-card .food-actions input[type="number"] {
+    width: 55px;
+    padding: 6px;
+    margin: 0;
+    font-size: 0.9rem;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    display: inline-block;
+    background: white;
+    color: #333;
+}
+
+.dark-mode .saved-food-card .food-actions input[type="number"] {
+    background: #1a1a1a;
+    color: white;
+    border-color: #555;
+}
+
+.saved-food-card .food-actions button {
+    width: auto;
+    padding: 7px 12px;
+    margin: 0;
+    font-size: 0.9rem;
+    display: inline-block;
+}
+
+.btn-remove {
+    background: #aa2222 !important;
+}
+
+.btn-save {
+    background: #226622 !important;
+}
+
+#no-saved-msg {
+    font-size: 1rem;
+    color: #888;
+    margin: 8px 0;
 }
 </style>
 </head>
@@ -144,155 +231,281 @@ video {
 <input type="number" id="manualCalories" placeholder="Calories per 100g">
 <input type="number" id="manualProtein" placeholder="Protein per 100g">
 <input type="number" id="manualServings" placeholder="Servings (100g units)" value="1">
-<button onclick="addManualFood()">Add Manually</button>
+<button onclick="addManualFood()">Add to Today</button>
+<button class="btn-save" onclick="saveManualToFavorites()">Save as Favourite</button>
 
 <button onclick="resetDay()">Reset Day</button>
 <button onclick="toggleDarkMode()">Toggle Dark Mode</button>
 
+<h2>Today's Log</h2>
 <div id="foodList"></div>
+
+<h2>Saved Foods</h2>
+<p id="no-saved-msg">No saved foods yet.</p>
+<div id="savedFoodsList"></div>
 
 </div>
 
-<!-- Popup -->
+<!-- Barcode confirm popup -->
 <div id="confirmPopup" class="popup">
     <h3 id="popupName"></h3>
     <p id="popupInfo"></p>
-    <input type="number" id="servingInput" value="1" min="1">
+    <input type="number" id="servingInput" value="1" min="0.1" step="0.1">
     <p>Servings (100g each)</p>
-    <button onclick="confirmAdd()">Add Food</button>
+    <button onclick="confirmAdd()">Add to Today</button>
+    <button class="btn-save" onclick="saveScannedToFavourites()">Save as Favourite</button>
     <button onclick="closePopup()">Cancel</button>
 </div>
 
 <script>
-let totalCalories = 0;
-let totalProtein = 0;
-let calorieGoal = 2000;
-let proteinGoal = 150;
+const STATE_KEY = 'trackerState';
 
-let scannedFood = {
-    name: "",
-    caloriesPer100: 0,
-    proteinPer100: 0
-};
+let totalCalories = 0;
+let totalProtein  = 0;
+let calorieGoal   = 2000;
+let proteinGoal   = 150;
+let foodLog       = []; // { name, cal, prot }
+let savedFoods    = []; // { name, caloriesPer100, proteinPer100 }
+
+let scannedFood = { name: "", caloriesPer100: 0, proteinPer100: 0 };
+
+/* ── Persistence ────────────────────────────────────────────── */
+
+function saveState() {
+    const state = {
+        totalCalories,
+        totalProtein,
+        calorieGoal,
+        proteinGoal,
+        darkMode: document.body.classList.contains('dark-mode'),
+        foodLog,
+        savedFoods
+    };
+    try { localStorage.setItem(STATE_KEY, JSON.stringify(state)); } catch(e) {}
+}
+
+function loadState() {
+    let raw;
+    try { raw = localStorage.getItem(STATE_KEY); } catch(e) {}
+    if (!raw) return;
+    try {
+        const s = JSON.parse(raw);
+        totalCalories = s.totalCalories || 0;
+        totalProtein  = s.totalProtein  || 0;
+        calorieGoal   = s.calorieGoal   || 2000;
+        proteinGoal   = s.proteinGoal   || 150;
+
+        if (s.darkMode) document.body.classList.add('dark-mode');
+
+        foodLog    = s.foodLog    || [];
+        savedFoods = s.savedFoods || [];
+
+        foodLog.forEach(item => renderFoodEntry(item.name, item.cal, item.prot));
+        savedFoods.forEach((food, i) => renderSavedFood(food, i));
+        updateSavedMsg();
+        updateBars();
+    } catch(e) {
+        console.error('State load failed', e);
+    }
+}
+
+/* ── Progress bars ──────────────────────────────────────────── */
 
 function updateBars() {
-    const caloriePercent = Math.min((totalCalories / calorieGoal) * 100, 100);
-    const proteinPercent = Math.min((totalProtein / proteinGoal) * 100, 100);
+    const calPct  = Math.min((totalCalories / calorieGoal) * 100, 100);
+    const protPct = Math.min((totalProtein  / proteinGoal) * 100, 100);
 
-    document.getElementById("calorieBar").style.width = caloriePercent + "%";
-    document.getElementById("proteinBar").style.width = proteinPercent + "%";
+    document.getElementById('calorieBar').style.width = calPct + '%';
+    document.getElementById('proteinBar').style.width = protPct + '%';
 
-    document.getElementById("calorieText").textContent =
-        `${totalCalories} / ${calorieGoal} kcal`;
+    document.getElementById('calorieText').textContent =
+        `${Math.round(totalCalories)} / ${calorieGoal} kcal`;
+    document.getElementById('proteinText').textContent =
+        `${Math.round(totalProtein)} / ${proteinGoal} g`;
+}
 
-    document.getElementById("proteinText").textContent =
-        `${totalProtein} / ${proteinGoal} g`;
+/* ── Today's log ────────────────────────────────────────────── */
+
+function renderFoodEntry(name, cal, prot) {
+    const el = document.createElement('div');
+    el.className = 'food-entry';
+    el.textContent = `${name} — ${Math.round(cal)} kcal | ${Math.round(prot)}g protein`;
+    document.getElementById('foodList').appendChild(el);
 }
 
 function addEntry(name, cal, prot) {
     totalCalories += cal;
-    totalProtein += prot;
+    totalProtein  += prot;
+    foodLog.push({ name, cal, prot });
+    renderFoodEntry(name, cal, prot);
     updateBars();
-
-    const entry = document.createElement("div");
-    entry.className = "food-entry";
-    entry.textContent = `${name} — ${cal} kcal | ${prot}g protein`;
-    document.getElementById("foodList").appendChild(entry);
+    saveState();
 }
 
-/* Manual */
+/* ── Manual entry ───────────────────────────────────────────── */
+
+function getManualFields() {
+    return {
+        name:       document.getElementById('manualName').value.trim(),
+        calPer100:  parseFloat(document.getElementById('manualCalories').value),
+        protPer100: parseFloat(document.getElementById('manualProtein').value),
+        servings:   parseFloat(document.getElementById('manualServings').value)
+    };
+}
+
+function clearManualFields() {
+    document.getElementById('manualName').value     = '';
+    document.getElementById('manualCalories').value = '';
+    document.getElementById('manualProtein').value  = '';
+    document.getElementById('manualServings').value = 1;
+}
+
 function addManualFood() {
-    const name = document.getElementById("manualName").value;
-    const calPer100 = parseFloat(document.getElementById("manualCalories").value);
-    const protPer100 = parseFloat(document.getElementById("manualProtein").value);
-    const servings = parseFloat(document.getElementById("manualServings").value);
-
-    if (!name || !calPer100 || !protPer100 || !servings) return;
-
-    const totalCal = calPer100 * servings;
-    const totalProt = protPer100 * servings;
-
-    addEntry(name, totalCal, totalProt);
-
-    document.getElementById("manualName").value = "";
-    document.getElementById("manualCalories").value = "";
-    document.getElementById("manualProtein").value = "";
-    document.getElementById("manualServings").value = 1;
+    const { name, calPer100, protPer100, servings } = getManualFields();
+    if (!name || isNaN(calPer100) || isNaN(protPer100) || isNaN(servings)) return;
+    addEntry(name, calPer100 * servings, protPer100 * servings);
+    clearManualFields();
 }
+
+function saveManualToFavorites() {
+    const { name, calPer100, protPer100 } = getManualFields();
+    if (!name || isNaN(calPer100) || isNaN(protPer100)) return;
+    addToFavourites(name, calPer100, protPer100);
+    clearManualFields();
+}
+
+/* ── Saved / favourite foods ────────────────────────────────── */
+
+function updateSavedMsg() {
+    document.getElementById('no-saved-msg').style.display =
+        savedFoods.length === 0 ? 'block' : 'none';
+}
+
+function addToFavourites(name, caloriesPer100, proteinPer100) {
+    if (savedFoods.some(f => f.name.toLowerCase() === name.toLowerCase())) {
+        alert(`"${name}" is already in your saved foods.`);
+        return;
+    }
+    const food = { name, caloriesPer100, proteinPer100 };
+    savedFoods.push(food);
+    renderSavedFood(food, savedFoods.length - 1);
+    updateSavedMsg();
+    saveState();
+}
+
+function renderSavedFood(food, index) {
+    const card = document.createElement('div');
+    card.className = 'saved-food-card';
+    card.id = `saved-card-${index}`;
+    card.innerHTML = `
+        <div class="food-info">
+            <strong>${food.name}</strong><br>
+            <small>${food.caloriesPer100} kcal | ${food.proteinPer100}g protein per 100g</small>
+        </div>
+        <div class="food-actions">
+            <input type="number" id="saved-serving-${index}" value="1" min="0.1" step="0.1">
+            <button onclick="quickAdd(${index})">Add</button>
+            <button class="btn-remove" onclick="removeSaved(${index})">✕</button>
+        </div>
+    `;
+    document.getElementById('savedFoodsList').appendChild(card);
+}
+
+function quickAdd(index) {
+    const food = savedFoods[index];
+    const servings = parseFloat(document.getElementById(`saved-serving-${index}`).value) || 1;
+    addEntry(food.name, food.caloriesPer100 * servings, food.proteinPer100 * servings);
+    document.getElementById(`saved-serving-${index}`).value = 1;
+}
+
+function removeSaved(index) {
+    savedFoods.splice(index, 1);
+    // Full re-render so indices stay correct
+    const list = document.getElementById('savedFoodsList');
+    list.innerHTML = '';
+    savedFoods.forEach((food, i) => renderSavedFood(food, i));
+    updateSavedMsg();
+    saveState();
+}
+
+/* ── Reset / dark mode ──────────────────────────────────────── */
 
 function resetDay() {
     totalCalories = 0;
-    totalProtein = 0;
-    document.getElementById("foodList").innerHTML = "";
+    totalProtein  = 0;
+    foodLog       = [];
+    document.getElementById('foodList').innerHTML = '';
     updateBars();
+    saveState();
 }
 
 function toggleDarkMode() {
-    document.body.classList.toggle("dark-mode");
+    document.body.classList.toggle('dark-mode');
+    saveState();
 }
 
-/* Barcode Scanner */
+/* ── Barcode scanner ────────────────────────────────────────── */
+
 function startScanner() {
-    document.getElementById("scanner").style.display = "block";
+    document.getElementById('scanner').style.display = 'block';
 
     Quagga.init({
         inputStream: {
-            type: "LiveStream",
+            type: 'LiveStream',
             target: document.querySelector('#scanner'),
-            constraints: { facingMode: "environment" }
+            constraints: { facingMode: 'environment' }
         },
-        decoder: {
-            readers: ["ean_reader", "upc_reader"]
-        }
+        decoder: { readers: ['ean_reader', 'upc_reader'] }
     }, function(err) {
         if (!err) Quagga.start();
     });
 
     Quagga.onDetected(function(result) {
         Quagga.stop();
-        document.getElementById("scanner").style.display = "none";
+        document.getElementById('scanner').style.display = 'none';
         lookupFood(result.codeResult.code);
     });
 }
 
-/* Fetch from OpenFoodFacts */
 function lookupFood(barcode) {
     fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`)
     .then(res => res.json())
     .then(data => {
-        if (data.status !== 1) {
-            alert("Food not found.");
-            return;
-        }
+        if (data.status !== 1) { alert('Food not found.'); return; }
 
-        const product = data.product;
+        const p = data.product;
+        scannedFood.name          = p.product_name || 'Unknown Food';
+        scannedFood.caloriesPer100 = p.nutriments['energy-kcal_100g'] || 0;
+        scannedFood.proteinPer100  = p.nutriments['proteins_100g']     || 0;
 
-        scannedFood.name = product.product_name || "Unknown Food";
-        scannedFood.caloriesPer100 = product.nutriments["energy-kcal_100g"] || 0;
-        scannedFood.proteinPer100 = product.nutriments["proteins_100g"] || 0;
-
-        document.getElementById("popupName").textContent = scannedFood.name;
-        document.getElementById("popupInfo").textContent =
+        document.getElementById('popupName').textContent = scannedFood.name;
+        document.getElementById('popupInfo').textContent =
             `${scannedFood.caloriesPer100} kcal | ${scannedFood.proteinPer100}g protein per 100g`;
 
-        document.getElementById("servingInput").value = 1;
-        document.getElementById("confirmPopup").style.display = "block";
+        document.getElementById('servingInput').value = 1;
+        document.getElementById('confirmPopup').style.display = 'block';
     });
 }
 
 function confirmAdd() {
-    const servings = parseFloat(document.getElementById("servingInput").value);
+    const servings = parseFloat(document.getElementById('servingInput').value) || 1;
+    addEntry(scannedFood.name,
+             scannedFood.caloriesPer100 * servings,
+             scannedFood.proteinPer100  * servings);
+    closePopup();
+}
 
-    const totalCal = scannedFood.caloriesPer100 * servings;
-    const totalProt = scannedFood.proteinPer100 * servings;
-
-    addEntry(scannedFood.name, totalCal, totalProt);
+function saveScannedToFavourites() {
+    addToFavourites(scannedFood.name, scannedFood.caloriesPer100, scannedFood.proteinPer100);
     closePopup();
 }
 
 function closePopup() {
-    document.getElementById("confirmPopup").style.display = "none";
+    document.getElementById('confirmPopup').style.display = 'none';
 }
+
+/* ── Init ───────────────────────────────────────────────────── */
+loadState();
 </script>
 
 </body>
