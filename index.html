@@ -28,10 +28,6 @@ body {
     padding: 20px;
 }
 
-h1, h2, p {
-    margin: 10px 0;
-}
-
 input, button {
     width: 80%;
     padding: 14px;
@@ -70,12 +66,10 @@ button {
     transition: width 0.3s ease;
 }
 
-/* Calories = Blue */
 #calorieBar {
     background-color: #4da3ff;
 }
 
-/* Protein = RED */
 #proteinBar {
     background-color: #ff3b3b;
 }
@@ -91,7 +85,6 @@ button {
 
 #scanner {
     width: 100%;
-    max-width: 100%;
     height: 50vh;
     margin: 10px auto;
     display: none;
@@ -112,7 +105,7 @@ video {
     background: white;
     padding: 20px;
     border-radius: 12px;
-    width: 80%;
+    width: 85%;
     display: none;
     z-index: 1000;
 }
@@ -146,9 +139,11 @@ video {
 
 <div id="scanner"></div>
 
-<h2>Manual Entry</h2>
-<input type="number" id="manualCalories" placeholder="Calories">
-<input type="number" id="manualProtein" placeholder="Protein (g)">
+<h2>Manual Entry (per 100g)</h2>
+<input type="text" id="manualName" placeholder="Food Name">
+<input type="number" id="manualCalories" placeholder="Calories per 100g">
+<input type="number" id="manualProtein" placeholder="Protein per 100g">
+<input type="number" id="manualServings" placeholder="Servings (100g units)" value="1">
 <button onclick="addManualFood()">Add Manually</button>
 
 <button onclick="resetDay()">Reset Day</button>
@@ -158,10 +153,13 @@ video {
 
 </div>
 
-<!-- Popup Confirmation -->
+<!-- Popup -->
 <div id="confirmPopup" class="popup">
-    <p id="popupText"></p>
-    <button onclick="confirmAdd()">Confirm</button>
+    <h3 id="popupName"></h3>
+    <p id="popupInfo"></p>
+    <input type="number" id="servingInput" value="1" min="1">
+    <p>Servings (100g each)</p>
+    <button onclick="confirmAdd()">Add Food</button>
     <button onclick="closePopup()">Cancel</button>
 </div>
 
@@ -170,8 +168,12 @@ let totalCalories = 0;
 let totalProtein = 0;
 let calorieGoal = 2000;
 let proteinGoal = 150;
-let scannedCalories = 0;
-let scannedProtein = 0;
+
+let scannedFood = {
+    name: "",
+    caloriesPer100: 0,
+    proteinPer100: 0
+};
 
 function updateBars() {
     const caloriePercent = Math.min((totalCalories / calorieGoal) * 100, 100);
@@ -187,26 +189,35 @@ function updateBars() {
         `${totalProtein} / ${proteinGoal} g`;
 }
 
-function addEntry(cal, prot) {
+function addEntry(name, cal, prot) {
     totalCalories += cal;
     totalProtein += prot;
     updateBars();
 
     const entry = document.createElement("div");
     entry.className = "food-entry";
-    entry.textContent = `${cal} kcal | ${prot}g protein`;
+    entry.textContent = `${name} — ${cal} kcal | ${prot}g protein`;
     document.getElementById("foodList").appendChild(entry);
 }
 
+/* Manual */
 function addManualFood() {
-    const cal = parseInt(document.getElementById("manualCalories").value);
-    const prot = parseInt(document.getElementById("manualProtein").value);
-    if (!cal || !prot) return;
+    const name = document.getElementById("manualName").value;
+    const calPer100 = parseFloat(document.getElementById("manualCalories").value);
+    const protPer100 = parseFloat(document.getElementById("manualProtein").value);
+    const servings = parseFloat(document.getElementById("manualServings").value);
 
-    addEntry(cal, prot);
+    if (!name || !calPer100 || !protPer100 || !servings) return;
 
+    const totalCal = calPer100 * servings;
+    const totalProt = protPer100 * servings;
+
+    addEntry(name, totalCal, totalProt);
+
+    document.getElementById("manualName").value = "";
     document.getElementById("manualCalories").value = "";
     document.getElementById("manualProtein").value = "";
+    document.getElementById("manualServings").value = 1;
 }
 
 function resetDay() {
@@ -226,43 +237,56 @@ function startScanner() {
 
     Quagga.init({
         inputStream: {
-            name: "Live",
             type: "LiveStream",
             target: document.querySelector('#scanner'),
-            constraints: {
-                facingMode: "environment"
-            }
+            constraints: { facingMode: "environment" }
         },
         decoder: {
             readers: ["ean_reader", "upc_reader"]
         }
     }, function(err) {
-        if (err) {
-            console.log(err);
-            return;
-        }
-        Quagga.start();
+        if (!err) Quagga.start();
     });
 
     Quagga.onDetected(function(result) {
         Quagga.stop();
         document.getElementById("scanner").style.display = "none";
+        lookupFood(result.codeResult.code);
+    });
+}
 
-        const code = result.codeResult.code;
+/* Fetch from OpenFoodFacts */
+function lookupFood(barcode) {
+    fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`)
+    .then(res => res.json())
+    .then(data => {
+        if (data.status !== 1) {
+            alert("Food not found.");
+            return;
+        }
 
-        // DEMO VALUES (Replace later with real API lookup)
-        scannedCalories = 250;
-        scannedProtein = 10;
+        const product = data.product;
 
-        document.getElementById("popupText").textContent =
-            `Barcode: ${code}\nAdd 250 kcal & 10g protein?`;
+        scannedFood.name = product.product_name || "Unknown Food";
+        scannedFood.caloriesPer100 = product.nutriments["energy-kcal_100g"] || 0;
+        scannedFood.proteinPer100 = product.nutriments["proteins_100g"] || 0;
 
+        document.getElementById("popupName").textContent = scannedFood.name;
+        document.getElementById("popupInfo").textContent =
+            `${scannedFood.caloriesPer100} kcal | ${scannedFood.proteinPer100}g protein per 100g`;
+
+        document.getElementById("servingInput").value = 1;
         document.getElementById("confirmPopup").style.display = "block";
     });
 }
 
 function confirmAdd() {
-    addEntry(scannedCalories, scannedProtein);
+    const servings = parseFloat(document.getElementById("servingInput").value);
+
+    const totalCal = scannedFood.caloriesPer100 * servings;
+    const totalProt = scannedFood.proteinPer100 * servings;
+
+    addEntry(scannedFood.name, totalCal, totalProt);
     closePopup();
 }
 
