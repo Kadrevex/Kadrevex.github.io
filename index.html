@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<link rel="manifest" href="manifest.json">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Calorie Tracker</title>
 
@@ -158,6 +159,10 @@ let goal = localStorage.getItem("goal") || 0;
 let today = new Date().toISOString().slice(0,10);
 let scanner;
 let scannedProduct=null;
+
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+}
 
 if(!entries[today]) entries[today]=[];
 
