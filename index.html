@@ -2,9 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<link rel="manifest" href="manifest.json">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#4CAF50">
 <title>Calorie Tracker</title>
+
+<link rel="manifest" href="manifest.json">
 
 <script src="https://unpkg.com/html5-qrcode"></script>
 
@@ -15,72 +17,84 @@
   --text:#111;
   --accent:#4CAF50;
 }
+
 body.dark{
   --bg:#121212;
   --card:#1e1e1e;
   --text:#eee;
   --accent:#81C784;
 }
+
 body{
   font-family:Arial;
   margin:0;
-  padding:15px;
+  padding:20px;
   background:var(--bg);
   color:var(--text);
+  text-align:center;
+  font-size:2rem; /* 2x larger */
 }
-h1{text-align:center;}
+
+h1,h2,h3,p,div{
+  text-align:center;
+}
+
 .card{
   background:var(--card);
-  padding:15px;
-  border-radius:12px;
-  margin-bottom:15px;
+  padding:20px;
+  border-radius:20px;
+  margin-bottom:20px;
 }
+
 button{
-  padding:10px;
+  padding:15px;
   border:none;
-  border-radius:8px;
-  margin:5px 0;
+  border-radius:12px;
+  margin:10px 0;
   background:var(--accent);
   color:white;
+  font-size:1.5rem;
   cursor:pointer;
+  width:100%;
 }
+
 input{
   width:100%;
-  padding:8px;
-  margin:5px 0;
-  border-radius:6px;
+  padding:12px;
+  margin:10px 0;
+  border-radius:12px;
   border:1px solid #ccc;
+  font-size:1.5rem;
+  text-align:center;
 }
+
 #reader{
   width:100%;
-  max-width:100%;
   height:300px;
+  border-radius:20px;
   overflow:hidden;
-  border-radius:12px;
 }
+
 .entry{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  margin:5px 0;
-  padding:8px;
-  border-radius:8px;
+  margin:15px 0;
+  padding:15px;
+  border-radius:15px;
   background:var(--card);
 }
-.small-btn{
-  padding:4px 6px;
-  font-size:12px;
-}
+
 .progress{
-  height:12px;
+  height:20px;
   background:#ccc;
-  border-radius:6px;
+  border-radius:10px;
   overflow:hidden;
+  margin-top:15px;
 }
+
 .progress-bar{
   height:100%;
   background:var(--accent);
 }
+
 .modal{
   position:fixed;
   top:0; left:0;
@@ -90,10 +104,11 @@ input{
   justify-content:center;
   align-items:center;
 }
+
 .modal-content{
   background:var(--card);
-  padding:20px;
-  border-radius:12px;
+  padding:30px;
+  border-radius:20px;
   width:90%;
 }
 </style>
@@ -108,7 +123,7 @@ input{
 
 <div class="card">
   <h3>Daily Goal</h3>
-  <input type="number" id="goalInput" placeholder="Enter daily calorie goal">
+  <input type="number" id="goalInput" placeholder="Enter calorie goal">
   <button onclick="setGoal()">Save Goal</button>
 </div>
 
@@ -142,7 +157,7 @@ input{
   <div id="weekTotal">0</div>
 </div>
 
-<!-- Confirmation Modal -->
+<!-- Modal -->
 <div class="modal" id="confirmModal">
   <div class="modal-content">
     <h3 id="confirmName"></h3>
@@ -154,15 +169,34 @@ input{
 </div>
 
 <script>
+/* ---------------- PWA SERVICE WORKER (INLINE GENERATION) ---------------- */
+
+if ('serviceWorker' in navigator) {
+  const swCode = `
+    const CACHE_NAME = 'calorie-app-v1';
+    self.addEventListener('install', e => {
+      e.waitUntil(
+        caches.open(CACHE_NAME).then(cache => cache.addAll(['./']))
+      );
+    });
+    self.addEventListener('fetch', e => {
+      e.respondWith(
+        caches.match(e.request).then(r => r || fetch(e.request))
+      );
+    });
+  `;
+  const blob = new Blob([swCode], { type: 'text/javascript' });
+  const swURL = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swURL);
+}
+
+/* ---------------- APP LOGIC ---------------- */
+
 let entries = JSON.parse(localStorage.getItem("entries")) || {};
 let goal = localStorage.getItem("goal") || 0;
 let today = new Date().toISOString().slice(0,10);
 let scanner;
 let scannedProduct=null;
-
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js');
-}
 
 if(!entries[today]) entries[today]=[];
 
@@ -201,17 +235,8 @@ function deleteEntry(index){
   update();
 }
 
-function editEntry(index){
-  let newCal=prompt("Edit calories:",entries[today][index].calories);
-  if(newCal){
-    entries[today][index].calories=parseFloat(newCal);
-    save();
-    update();
-  }
-}
-
 function resetDay(){
-  if(confirm("Clear today's entries?")){
+  if(confirm("Clear today?")){
     entries[today]=[];
     save();
     update();
@@ -226,11 +251,9 @@ function update(){
     total+=e.calories;
     list.innerHTML+=`
       <div class="entry">
-        <div>${e.name} (${e.calories} kcal)</div>
-        <div>
-          <button class="small-btn" onclick="editEntry(${i})">Edit</button>
-          <button class="small-btn" onclick="deleteEntry(${i})">Delete</button>
-        </div>
+        ${e.name} (${e.calories} kcal)
+        <br>
+        <button onclick="deleteEntry(${i})">Delete</button>
       </div>
     `;
   });
