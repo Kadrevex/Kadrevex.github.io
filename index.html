@@ -243,6 +243,85 @@ button {
 .btn-goals {
     background: #5577dd !important;
 }
+
+/* Food name search dropdown */
+.search-wrap {
+    position: relative;
+    width: 80%;
+    margin: 10px auto;
+}
+
+.search-wrap > input {
+    width: 100%;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+.search-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ccc;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 600;
+    display: none;
+    text-align: left;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+}
+
+.dark-mode .search-dropdown {
+    background: #1e1e1e;
+    border-color: #555;
+}
+
+.search-item {
+    padding: 10px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+}
+
+.dark-mode .search-item {
+    border-bottom-color: #333;
+}
+
+.search-item:last-child {
+    border-bottom: none;
+}
+
+.search-item:hover {
+    background: #eef2ff;
+}
+
+.dark-mode .search-item:hover {
+    background: #2a2a3a;
+}
+
+.search-item-name {
+    font-size: 1rem;
+    font-weight: bold;
+}
+
+.search-item-info {
+    font-size: 0.8rem;
+    color: #888;
+    margin-top: 2px;
+}
+
+.dark-mode .search-item-info {
+    color: #aaa;
+}
+
+.search-status {
+    padding: 10px 14px;
+    font-size: 0.95rem;
+    color: #888;
+    font-style: italic;
+}
 </style>
 </head>
 
@@ -282,7 +361,10 @@ button {
 <div id="scanner"></div>
 
 <h2>Manual Entry (per 100g)</h2>
-<input type="text" id="manualName" placeholder="Food Name">
+<div class="search-wrap">
+    <input type="text" id="manualName" placeholder="Food Name" autocomplete="off" oninput="onNameInput()">
+    <div id="searchDropdown" class="search-dropdown"></div>
+</div>
 <input type="number" id="manualCalories" placeholder="Calories per 100g">
 <input type="number" id="manualProtein" placeholder="Protein per 100g">
 <input type="number" id="manualServings" placeholder="Servings (100g units)" value="1">
@@ -399,6 +481,77 @@ function addEntry(name, cal, prot) {
     updateBars();
     saveState();
 }
+
+/* ── Food name search ───────────────────────────────────────── */
+
+let searchTimer = null;
+
+function onNameInput() {
+    const query = document.getElementById('manualName').value.trim();
+    clearTimeout(searchTimer);
+    if (query.length < 2) { closeDropdown(); return; }
+    searchTimer = setTimeout(() => searchFood(query), 500);
+}
+
+function searchFood(query) {
+    const dd = document.getElementById('searchDropdown');
+    dd.innerHTML = '<div class="search-status">Searching…</div>';
+    dd.style.display = 'block';
+
+    fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=10&fields=product_name,nutriments`)
+    .then(r => r.json())
+    .then(data => {
+        const products = (data.products || []).filter(p =>
+            p.product_name && p.nutriments &&
+            (p.nutriments['energy-kcal_100g'] != null || p.nutriments['energy_100g'] != null)
+        );
+
+        if (products.length === 0) {
+            dd.innerHTML = '<div class="search-status">No results found.</div>';
+            return;
+        }
+
+        dd.innerHTML = '';
+        products.forEach(p => {
+            const cal  = p.nutriments['energy-kcal_100g'] ??
+                         Math.round((p.nutriments['energy_100g'] || 0) / 4.184);
+            const prot = p.nutriments['proteins_100g'] || 0;
+
+            const item = document.createElement('div');
+            item.className = 'search-item';
+            item.innerHTML = `
+                <div class="search-item-name">${p.product_name}</div>
+                <div class="search-item-info">${Math.round(cal)} kcal | ${Math.round(prot * 10) / 10}g protein per 100g</div>
+            `;
+            // mousedown fires before blur so the input doesn't lose focus before we read it
+            item.addEventListener('mousedown', e => {
+                e.preventDefault();
+                selectResult(p.product_name, cal, prot);
+            });
+            dd.appendChild(item);
+        });
+    })
+    .catch(() => {
+        dd.innerHTML = '<div class="search-status">Search failed — enter values manually.</div>';
+    });
+}
+
+function selectResult(name, cal, prot) {
+    document.getElementById('manualName').value     = name;
+    document.getElementById('manualCalories').value = Math.round(cal * 10) / 10;
+    document.getElementById('manualProtein').value  = Math.round(prot * 10) / 10;
+    closeDropdown();
+}
+
+function closeDropdown() {
+    const dd = document.getElementById('searchDropdown');
+    dd.style.display = 'none';
+    dd.innerHTML = '';
+}
+
+document.addEventListener('click', e => {
+    if (!document.querySelector('.search-wrap').contains(e.target)) closeDropdown();
+});
 
 /* ── Manual entry ───────────────────────────────────────────── */
 
