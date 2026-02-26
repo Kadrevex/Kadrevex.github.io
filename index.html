@@ -85,8 +85,44 @@ button {
 }
 
 .food-entry {
-    margin: 8px 0;
-    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 80%;
+    margin: 8px auto;
+    font-size: 1rem;
+    gap: 8px;
+    text-align: left;
+}
+
+.food-entry span {
+    flex: 1;
+}
+
+.log-remove {
+    width: auto !important;
+    padding: 5px 10px !important;
+    margin: 0 !important;
+    font-size: 0.85rem !important;
+    background: #aa2222 !important;
+    flex-shrink: 0;
+}
+
+/* Scanner close button */
+#scanner-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 10;
+    width: auto;
+    padding: 7px 14px;
+    margin: 0;
+    font-size: 1rem;
+    background: rgba(0, 0, 0, 0.65);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
 }
 
 /* Scanner: stays inside its panel */
@@ -358,7 +394,9 @@ button {
 
 <button onclick="startScanner()">Scan Barcode</button>
 
-<div id="scanner"></div>
+<div id="scanner">
+    <button id="scanner-close" onclick="stopScanner()">✕ Close</button>
+</div>
 
 <h2>Manual Entry (per 100g)</h2>
 <div class="search-wrap">
@@ -440,7 +478,7 @@ function loadState() {
         foodLog    = s.foodLog    || [];
         savedFoods = s.savedFoods || [];
 
-        foodLog.forEach(item => renderFoodEntry(item.name, item.cal, item.prot));
+        foodLog.forEach((item, i) => renderFoodEntry(item.name, item.cal, item.prot, i));
         savedFoods.forEach((food, i) => renderSavedFood(food, i));
         updateSavedMsg();
         updateBars();
@@ -466,18 +504,32 @@ function updateBars() {
 
 /* ── Today's log ────────────────────────────────────────────── */
 
-function renderFoodEntry(name, cal, prot) {
+function renderFoodEntry(name, cal, prot, index) {
     const el = document.createElement('div');
     el.className = 'food-entry';
-    el.textContent = `${name} — ${Math.round(cal)} kcal | ${Math.round(prot)}g protein`;
+    el.innerHTML = `
+        <span>${name} — ${Math.round(cal)} kcal | ${Math.round(prot)}g protein</span>
+        <button class="log-remove" onclick="removeLogEntry(${index})">✕</button>
+    `;
     document.getElementById('foodList').appendChild(el);
+}
+
+function removeLogEntry(index) {
+    totalCalories -= foodLog[index].cal;
+    totalProtein  -= foodLog[index].prot;
+    foodLog.splice(index, 1);
+    const list = document.getElementById('foodList');
+    list.innerHTML = '';
+    foodLog.forEach((item, i) => renderFoodEntry(item.name, item.cal, item.prot, i));
+    updateBars();
+    saveState();
 }
 
 function addEntry(name, cal, prot) {
     totalCalories += cal;
     totalProtein  += prot;
     foodLog.push({ name, cal, prot });
-    renderFoodEntry(name, cal, prot);
+    renderFoodEntry(name, cal, prot, foodLog.length - 1);
     updateBars();
     saveState();
 }
@@ -688,6 +740,11 @@ function startScanner() {
         document.getElementById('scanner').style.display = 'none';
         lookupFood(result.codeResult.code);
     });
+}
+
+function stopScanner() {
+    Quagga.stop();
+    document.getElementById('scanner').style.display = 'none';
 }
 
 function lookupFood(barcode) {
