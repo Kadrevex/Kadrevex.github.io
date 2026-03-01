@@ -384,6 +384,56 @@ button {
     flex-shrink: 0;
 }
 
+/* Progression section */
+.progression-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 80%;
+    margin: 10px auto;
+}
+
+.progression-input-row input {
+    flex: 1;
+    width: auto;
+    margin: 0;
+    padding: 12px 14px;
+    font-size: 1.1rem;
+}
+
+.progression-input-row button {
+    width: auto;
+    margin: 0;
+    padding: 12px 18px;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.graph-wrap {
+    width: 88%;
+    margin: 12px auto 4px;
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+}
+
+.dark-mode .graph-wrap {
+    background: #252525;
+}
+
+#weightGraph {
+    display: block;
+    width: 100%;
+}
+
+#graph-empty {
+    text-align: center;
+    color: #999;
+    font-size: 0.95rem;
+    padding: 28px 0;
+}
+
 /* Section panels */
 .section-panel {
     background: #e2e2e2;
@@ -457,6 +507,19 @@ button {
 <h2>Today's Log</h2>
 <div id="foodList"></div>
 
+<button onclick="toggleProgression()">Progression</button>
+
+<div id="progressionSection" style="display:none;">
+    <div class="progression-input-row">
+        <input type="number" id="weightInput" placeholder="Weight (kg)" step="0.1" min="0">
+        <button onclick="submitWeight()">Submit</button>
+    </div>
+    <div class="graph-wrap">
+        <canvas id="weightGraph"></canvas>
+        <p id="graph-empty">No weight data yet — enter your first weight above.</p>
+    </div>
+</div>
+
 <h2>Saved Foods</h2>
 <p id="no-saved-msg">No saved foods yet.</p>
 <div id="savedFoodsList"></div>
@@ -483,6 +546,7 @@ let calorieGoal   = 2000;
 let proteinGoal   = 150;
 let foodLog       = []; // { name, cal, prot }
 let savedFoods    = []; // { name, caloriesPer100, proteinPer100 }
+let weightLog     = []; // { date: 'YYYY-MM-DD', weight: number }
 
 let scannedFood = { name: "", caloriesPer100: 0, proteinPer100: 0 };
 
@@ -496,7 +560,8 @@ function saveState() {
         proteinGoal,
         darkMode: document.body.classList.contains('dark-mode'),
         foodLog,
-        savedFoods
+        savedFoods,
+        weightLog
     };
     try { localStorage.setItem(STATE_KEY, JSON.stringify(state)); } catch(e) {}
 }
@@ -519,6 +584,7 @@ function loadState() {
 
         foodLog    = s.foodLog    || [];
         savedFoods = s.savedFoods || [];
+        weightLog  = s.weightLog  || [];
 
         foodLog.forEach((item, i) => renderFoodEntry(item.name, item.cal, item.prot, i));
         savedFoods.forEach((food, i) => renderSavedFood(food, i));
@@ -759,6 +825,8 @@ function resetDay() {
 function toggleDarkMode() {
     document.body.classList.toggle('dark-mode');
     saveState();
+    const sec = document.getElementById('progressionSection');
+    if (sec.style.display !== 'none') drawWeightGraph();
 }
 
 /* ── Barcode scanner ────────────────────────────────────────── */
@@ -824,6 +892,145 @@ function saveScannedToFavourites() {
 
 function closePopup() {
     document.getElementById('confirmPopup').style.display = 'none';
+}
+
+/* ── Progression / weight graph ─────────────────────────────── */
+
+function toggleProgression() {
+    const sec = document.getElementById('progressionSection');
+    const visible = sec.style.display !== 'none';
+    sec.style.display = visible ? 'none' : 'block';
+    if (!visible) drawWeightGraph();
+}
+
+function submitWeight() {
+    const input = document.getElementById('weightInput');
+    const w = parseFloat(input.value);
+    if (isNaN(w) || w <= 0) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const existing = weightLog.findIndex(e => e.date === today);
+    if (existing >= 0) {
+        weightLog[existing].weight = w;
+    } else {
+        weightLog.push({ date: today, weight: w });
+    }
+
+    input.value = '';
+    saveState();
+    drawWeightGraph();
+}
+
+function drawWeightGraph() {
+    const emptyMsg = document.getElementById('graph-empty');
+    const canvas   = document.getElementById('weightGraph');
+
+    if (weightLog.length === 0) {
+        emptyMsg.style.display = 'block';
+        canvas.style.display   = 'none';
+        return;
+    }
+    emptyMsg.style.display = 'none';
+    canvas.style.display   = 'block';
+
+    const sorted = [...weightLog].sort((a, b) => a.date.localeCompare(b.date));
+    const isDark = document.body.classList.contains('dark-mode');
+
+    // Size canvas to its CSS container width
+    const wrap = canvas.parentElement;
+    canvas.width  = wrap.clientWidth;
+    canvas.height = 240;
+
+    const ctx = canvas.getContext('2d');
+    const pad = { top: 20, right: 20, bottom: 48, left: 50 };
+    const W = canvas.width  - pad.left - pad.right;
+    const H = canvas.height - pad.top  - pad.bottom;
+
+    const textColor = isDark ? '#bbb' : '#444';
+    const gridColor = isDark ? '#383838' : '#e0e0e0';
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Y-axis range with 10% padding
+    const weights = sorted.map(e => e.weight);
+    const rawMin  = Math.min(...weights);
+    const rawMax  = Math.max(...weights);
+    const span    = rawMax - rawMin || 1;
+    const yMin    = rawMin - span * 0.15;
+    const yMax    = rawMax + span * 0.15;
+
+    const toX = i  => pad.left + (sorted.length < 2 ? W / 2 : (i / (sorted.length - 1)) * W);
+    const toY = w  => pad.top  + H - ((w - yMin) / (yMax - yMin)) * H;
+
+    // Horizontal grid + Y labels
+    const ySteps = 5;
+    ctx.font      = '11px Arial';
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= ySteps; i++) {
+        const y   = pad.top + (i / ySteps) * H;
+        const val = yMax - (i / ySteps) * (yMax - yMin);
+        ctx.strokeStyle = gridColor;
+        ctx.lineWidth   = 1;
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(pad.left + W, y);
+        ctx.stroke();
+        ctx.fillStyle = textColor;
+        ctx.fillText(val.toFixed(1), pad.left - 6, y + 4);
+    }
+
+    // X-axis date labels
+    ctx.textAlign = 'center';
+    ctx.fillStyle = textColor;
+    ctx.font      = '10px Arial';
+    const maxLabels = Math.min(sorted.length, 7);
+    const step      = Math.max(1, Math.ceil(sorted.length / maxLabels));
+    sorted.forEach((entry, i) => {
+        if (i % step !== 0 && i !== sorted.length - 1) return;
+        const d     = new Date(entry.date + 'T00:00:00');
+        const label = `${d.getDate()}/${d.getMonth() + 1}`;
+        ctx.fillText(label, toX(i), pad.top + H + 18);
+    });
+
+    // Y-axis label
+    ctx.save();
+    ctx.translate(13, pad.top + H / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.font      = '11px Arial';
+    ctx.fillStyle = textColor;
+    ctx.fillText('kg', 0, 0);
+    ctx.restore();
+
+    // Line
+    if (sorted.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(toX(0), toY(sorted[0].weight));
+        sorted.forEach((e, i) => { if (i > 0) ctx.lineTo(toX(i), toY(e.weight)); });
+        ctx.strokeStyle = '#4da3ff';
+        ctx.lineWidth   = 2.5;
+        ctx.lineJoin    = 'round';
+        ctx.stroke();
+    }
+
+    // Dots
+    sorted.forEach((e, i) => {
+        ctx.beginPath();
+        ctx.arc(toX(i), toY(e.weight), 5, 0, Math.PI * 2);
+        ctx.fillStyle   = '#4da3ff';
+        ctx.fill();
+        ctx.strokeStyle = isDark ? '#252525' : 'white';
+        ctx.lineWidth   = 2;
+        ctx.stroke();
+    });
+
+    // Weight label above each dot
+    ctx.font      = '10px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = textColor;
+    sorted.forEach((e, i) => {
+        ctx.fillText(e.weight.toFixed(1), toX(i), toY(e.weight) - 10);
+    });
 }
 
 /* ── Init ───────────────────────────────────────────────────── */
