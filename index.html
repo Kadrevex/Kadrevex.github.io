@@ -385,8 +385,23 @@ button {
 }
 
 /* Progression section */
+#progressionSection {
+    background: #3a3a3a;
+    border-radius: 14px;
+    padding: 12px 0 18px;
+    margin: 10px 0 14px;
+    color: white;
+}
+
+#progressionSection h3 {
+    margin: 8px 0 4px;
+    font-size: 1rem;
+    color: #ccc;
+}
+
 .progression-input-row {
     display: flex;
+    flex-direction: column;
     align-items: center;
     gap: 8px;
     width: 80%;
@@ -394,32 +409,37 @@ button {
 }
 
 .progression-input-row input {
-    flex: 1;
-    width: auto;
+    width: 100%;
     margin: 0;
     padding: 12px 14px;
     font-size: 1.1rem;
+    box-sizing: border-box;
+    background: #555;
+    color: white;
+    border: 1px solid #666;
+    border-radius: 8px;
+}
+
+.dark-mode .progression-input-row input {
+    background: #2a2a2a;
+    border-color: #555;
 }
 
 .progression-input-row button {
-    width: auto;
+    width: 100%;
     margin: 0;
     padding: 12px 18px;
     font-size: 1.1rem;
-    flex-shrink: 0;
+    background: #4da3ff;
 }
 
 .graph-wrap {
-    width: 88%;
+    width: 90%;
     margin: 12px auto 4px;
-    background: white;
+    background: #2a2a2a;
     border-radius: 10px;
     overflow: hidden;
     position: relative;
-}
-
-.dark-mode .graph-wrap {
-    background: #252525;
 }
 
 #weightGraph {
@@ -429,7 +449,7 @@ button {
 
 #graph-empty {
     text-align: center;
-    color: #999;
+    color: #aaa;
     font-size: 0.95rem;
     padding: 28px 0;
 }
@@ -934,41 +954,37 @@ function drawWeightGraph() {
     canvas.style.display   = 'block';
 
     const sorted = [...weightLog].sort((a, b) => a.date.localeCompare(b.date));
-    const isDark = document.body.classList.contains('dark-mode');
 
-    // Size canvas to its CSS container width
+    // Always draw with dark colours — the panel is always dark
+    const textColor = '#cccccc';
+    const gridColor = '#484848';
+
     const wrap = canvas.parentElement;
     canvas.width  = wrap.clientWidth;
-    canvas.height = 240;
+    canvas.height = 300;
 
     const ctx = canvas.getContext('2d');
-    const pad = { top: 20, right: 20, bottom: 48, left: 50 };
+    const pad = { top: 28, right: 24, bottom: 64, left: 58 };
     const W = canvas.width  - pad.left - pad.right;
     const H = canvas.height - pad.top  - pad.bottom;
 
-    const textColor = isDark ? '#bbb' : '#444';
-    const gridColor = isDark ? '#383838' : '#e0e0e0';
-
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Y-axis range with 10% padding
+    // ── Y axis: fixed 10 kg increments ──────────────────────────
     const weights = sorted.map(e => e.weight);
     const rawMin  = Math.min(...weights);
     const rawMax  = Math.max(...weights);
-    const span    = rawMax - rawMin || 1;
-    const yMin    = rawMin - span * 0.15;
-    const yMax    = rawMax + span * 0.15;
+    const yMin    = Math.floor(rawMin / 10) * 10;
+    const yMax    = Math.ceil(rawMax  / 10) * 10 || yMin + 10;
+    const kgRange = yMax - yMin || 10;
 
-    const toX = i  => pad.left + (sorted.length < 2 ? W / 2 : (i / (sorted.length - 1)) * W);
-    const toY = w  => pad.top  + H - ((w - yMin) / (yMax - yMin)) * H;
+    const toX = i => pad.left + (sorted.length < 2 ? W / 2 : (i / (sorted.length - 1)) * W);
+    const toY = w => pad.top  + H - ((w - yMin) / kgRange) * H;
 
-    // Horizontal grid + Y labels
-    const ySteps = 5;
-    ctx.font      = '11px Arial';
+    ctx.font      = '13px Arial';
     ctx.textAlign = 'right';
-    for (let i = 0; i <= ySteps; i++) {
-        const y   = pad.top + (i / ySteps) * H;
-        const val = yMax - (i / ySteps) * (yMax - yMin);
+    for (let kg = yMin; kg <= yMax; kg += 10) {
+        const y = toY(kg);
         ctx.strokeStyle = gridColor;
         ctx.lineWidth   = 1;
         ctx.beginPath();
@@ -976,33 +992,34 @@ function drawWeightGraph() {
         ctx.lineTo(pad.left + W, y);
         ctx.stroke();
         ctx.fillStyle = textColor;
-        ctx.fillText(val.toFixed(1), pad.left - 6, y + 4);
+        ctx.fillText(kg + ' kg', pad.left - 6, y + 5);
     }
 
-    // X-axis date labels
+    // ── X axis: date labels ──────────────────────────────────────
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    ctx.font      = '13px Arial';
     ctx.textAlign = 'center';
     ctx.fillStyle = textColor;
-    ctx.font      = '10px Arial';
-    const maxLabels = Math.min(sorted.length, 7);
-    const step      = Math.max(1, Math.ceil(sorted.length / maxLabels));
+    const maxLabels = Math.min(sorted.length, 6);
+    const xStep     = Math.max(1, Math.ceil(sorted.length / maxLabels));
     sorted.forEach((entry, i) => {
-        if (i % step !== 0 && i !== sorted.length - 1) return;
+        if (i % xStep !== 0 && i !== sorted.length - 1) return;
         const d     = new Date(entry.date + 'T00:00:00');
-        const label = `${d.getDate()}/${d.getMonth() + 1}`;
-        ctx.fillText(label, toX(i), pad.top + H + 18);
+        const label = `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+        ctx.fillText(label, toX(i), pad.top + H + 22);
     });
 
-    // Y-axis label
+    // ── Y-axis title ─────────────────────────────────────────────
     ctx.save();
-    ctx.translate(13, pad.top + H / 2);
+    ctx.translate(14, pad.top + H / 2);
     ctx.rotate(-Math.PI / 2);
     ctx.textAlign = 'center';
-    ctx.font      = '11px Arial';
+    ctx.font      = '13px Arial';
     ctx.fillStyle = textColor;
     ctx.fillText('kg', 0, 0);
     ctx.restore();
 
-    // Line
+    // ── Line ─────────────────────────────────────────────────────
     if (sorted.length > 1) {
         ctx.beginPath();
         ctx.moveTo(toX(0), toY(sorted[0].weight));
@@ -1013,23 +1030,20 @@ function drawWeightGraph() {
         ctx.stroke();
     }
 
-    // Dots
+    // ── Dots + value labels ───────────────────────────────────────
+    ctx.font      = '12px Arial';
+    ctx.textAlign = 'center';
     sorted.forEach((e, i) => {
         ctx.beginPath();
         ctx.arc(toX(i), toY(e.weight), 5, 0, Math.PI * 2);
         ctx.fillStyle   = '#4da3ff';
         ctx.fill();
-        ctx.strokeStyle = isDark ? '#252525' : 'white';
+        ctx.strokeStyle = '#2a2a2a';
         ctx.lineWidth   = 2;
         ctx.stroke();
-    });
 
-    // Weight label above each dot
-    ctx.font      = '10px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = textColor;
-    sorted.forEach((e, i) => {
-        ctx.fillText(e.weight.toFixed(1), toX(i), toY(e.weight) - 10);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(e.weight.toFixed(1), toX(i), toY(e.weight) - 11);
     });
 }
 
