@@ -442,14 +442,14 @@ button {
         <button id="scanner-close" onclick="stopScanner()">✕ Close</button>
     </div>
 
-    <h2>Manual Entry (per 100g)</h2>
+    <h2>Manual Entry</h2>
     <div class="search-wrap">
         <input type="text" id="manualName" placeholder="Food Name" autocomplete="off" oninput="onNameInput()">
         <div id="searchDropdown" class="search-dropdown"></div>
     </div>
-    <input type="number" id="manualCalories" placeholder="Calories per 100g">
-    <input type="number" id="manualProtein" placeholder="Protein per 100g">
-    <input type="number" id="manualServings" placeholder="Servings (100g units)" value="1">
+    <input type="number" id="manualCalories" placeholder="Calories">
+    <input type="number" id="manualProtein" placeholder="Protein">
+    <input type="number" id="manualServings" placeholder="Servings>
     <button onclick="addManualFood()">Add to Today</button>
     <button class="btn-save" onclick="saveManualToFavorites()">Save as Favourite</button>
 </div>
